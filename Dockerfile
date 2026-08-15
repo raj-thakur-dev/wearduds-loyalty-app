@@ -13,7 +13,7 @@ RUN npm install -g pnpm
 
 COPY package.json pnpm-lock.yaml* ./
 
-RUN pnpm install --frozen-lockfile --prod=false && pnpm store prune
+RUN pnpm install --frozen-lockfile --prod=false
 
 COPY . .
 
