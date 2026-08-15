@@ -1,0 +1,283 @@
+{% comment %}
+  WearDuds Loyalty Widget - Floating Rewards Button + Slide-in Drawer
+{% endcomment %}
+
+<div id="wearduds-loyalty-widget">
+  <button id="wd-loyalty-toggle" aria-label="My Rewards">
+    🏆 <span>My Rewards</span>
+  </button>
+
+  <div id="wd-loyalty-overlay"></div>
+
+  <div id="wd-loyalty-drawer">
+    <button id="wd-loyalty-close" aria-label="Close">&times;</button>
+
+    {% if customer %}
+      <div id="wd-loyalty-content">
+        <h2>Hi, {{ customer.first_name }}</h2>
+
+        <div class="wd-points-balance">
+          <span class="wd-points-number" id="wd-points-value">--</span>
+          <span class="wd-points-label">points</span>
+        </div>
+
+        <div class="wd-tier-badge" id="wd-tier-badge">Loading tier...</div>
+
+        <div class="wd-progress-wrap">
+          <div class="wd-progress-bar">
+            <div class="wd-progress-fill" id="wd-progress-fill" style="width: 0%;"></div>
+          </div>
+          <p class="wd-progress-text" id="wd-progress-text">Loading progress...</p>
+        </div>
+
+        <a href="/pages/loyalty" class="wd-redeem-btn">Redeem Points</a>
+      </div>
+    {% else %}
+      <div id="wd-loyalty-guest">
+        <h2>Join DUDS CREW</h2>
+        <p>Sign in to track your points, unlock tiers, and redeem rewards.</p>
+        <a href="/account/login" class="wd-redeem-btn">Sign In</a>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+  #wearduds-loyalty-widget * {
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  #wd-loyalty-toggle {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9998;
+    background: #7c3aed;
+    color: #fff;
+    border: none;
+    border-radius: 999px;
+    padding: 14px 22px;
+    font-size: 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(124, 58, 237, 0.4);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  #wd-loyalty-toggle:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(124, 58, 237, 0.5);
+  }
+
+  #wd-loyalty-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+
+  #wd-loyalty-overlay.wd-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  #wd-loyalty-drawer {
+    position: fixed;
+    top: 0;
+    right: -350px;
+    width: 350px;
+    max-width: 90vw;
+    height: 100%;
+    background: #111111;
+    color: #ffffff;
+    z-index: 10000;
+    padding: 24px;
+    transition: right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow-y: auto;
+  }
+
+  #wd-loyalty-drawer.wd-open {
+    right: 0;
+  }
+
+  #wd-loyalty-close {
+    background: none;
+    border: none;
+    color: #ffffff;
+    font-size: 28px;
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  #wd-loyalty-content,
+  #wd-loyalty-guest {
+    margin-top: 48px;
+  }
+
+  #wd-loyalty-content h2,
+  #wd-loyalty-guest h2 {
+    font-size: 20px;
+    margin-bottom: 24px;
+  }
+
+  .wd-points-balance {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+  .wd-points-number {
+    font-size: 42px;
+    font-weight: 700;
+    color: #7c3aed;
+    display: block;
+  }
+
+  .wd-points-label {
+    font-size: 13px;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .wd-tier-badge {
+    background: #7c3aed;
+    color: #fff;
+    text-align: center;
+    padding: 8px 16px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 24px;
+    display: inline-block;
+    width: 100%;
+  }
+
+  .wd-progress-wrap {
+    margin-bottom: 32px;
+  }
+
+  .wd-progress-bar {
+    background: #2a2a2a;
+    height: 8px;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+
+  .wd-progress-fill {
+    background: #7c3aed;
+    height: 100%;
+    transition: width 0.5s ease;
+  }
+
+  .wd-progress-text {
+    font-size: 12px;
+    color: #999;
+    text-align: center;
+  }
+
+  .wd-redeem-btn {
+    display: block;
+    background: #7c3aed;
+    color: #fff;
+    text-align: center;
+    padding: 14px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: background 0.2s ease;
+  }
+
+  .wd-redeem-btn:hover {
+    background: #6d28d9;
+  }
+
+  #wd-loyalty-drawer,
+#wd-loyalty-drawer * {
+  color: #ffffff !important;
+}
+
+#wd-loyalty-guest p,
+.wd-progress-text,
+.wd-points-label {
+  color: #999999 !important;
+}
+
+.wd-redeem-btn {
+  color: #ffffff !important;
+}
+
+  @media (max-width: 480px) {
+    #wd-loyalty-toggle span {
+      display: none;
+    }
+    #wd-loyalty-toggle {
+      padding: 14px;
+      border-radius: 50%;
+    }
+  }
+</style>
+
+<script>
+  (function () {
+    var toggle = document.getElementById('wd-loyalty-toggle');
+    var drawer = document.getElementById('wd-loyalty-drawer');
+    var overlay = document.getElementById('wd-loyalty-overlay');
+    var closeBtn = document.getElementById('wd-loyalty-close');
+
+    function openDrawer() {
+      drawer.classList.add('wd-open');
+      overlay.classList.add('wd-open');
+      {% if customer %}
+        fetchLoyaltyData();
+      {% endif %}
+    }
+
+    function closeDrawer() {
+      drawer.classList.remove('wd-open');
+      overlay.classList.remove('wd-open');
+    }
+
+    toggle.addEventListener('click', openDrawer);
+    closeBtn.addEventListener('click', closeDrawer);
+    overlay.addEventListener('click', closeDrawer);
+
+    {% if customer %}
+    function fetchLoyaltyData() {
+      fetch('/apps/loyalty/api/loyalty/balance?customer_id={{ customer.id }}')
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          document.getElementById('wd-points-value').textContent = data.points || 0;
+          document.getElementById('wd-tier-badge').textContent = data.tier || 'Freshman';
+          document.getElementById('wd-progress-fill').style.width = (data.progressPercent || 0) + '%';
+          document.getElementById('wd-progress-text').textContent =
+            data.pointsToNextTier
+              ? data.pointsToNextTier + ' points to ' + data.nextTier
+              : 'Max tier reached!';
+        })
+        .catch(function (err) {
+          console.error('WearDuds Loyalty: failed to load balance', err);
+          document.getElementById('wd-tier-badge').textContent = 'Unable to load';
+        });
+    }
+    {% endif %}
+  })();
+</script>
+
+{% schema %}
+{
+  "name": "WearDuds Loyalty Widget",
+  "target": "body",
+  "settings": []
+}
+{% endschema %}
