@@ -2,16 +2,7 @@
   "name": "wearduds-loyalty",
   "private": true,
     "packageManager": "pnpm@9.15.0",
-    "pnpm": {
-  "onlyBuiltDependencies": [
-    "@parcel/watcher",
-    "@prisma/client",
-    "@prisma/engines",
-    "esbuild",
-    "prisma",
-    "unrs-resolver"
-  ]
-},
+    
   "scripts": {
     "build": "react-router build",
     "dev": "shopify app dev",
