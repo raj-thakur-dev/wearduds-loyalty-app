@@ -1,13 +1,12 @@
-FROM node:22-alpine
-RUN apk add --no-cache openssl
+FROM node:22-slim
+
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 EXPOSE 3000
 
 WORKDIR /app
 
 ENV NODE_ENV=production
-
-# Install pnpm
 
 RUN npm install -g pnpm
 
