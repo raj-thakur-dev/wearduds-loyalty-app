@@ -40,3 +40,35 @@ model LoyaltyMember {
   points            Int      @default(0)
   tier          String    @default("Bronze")
 }
+
+model LoyaltyTransaction {
+  id                String   @id @default(cuid())
+  shopifyCustomerId String
+  description       String
+  points            Int      // positive = earned, negative = redeemed
+  createdAt         DateTime @default(now())
+
+  @@index([shopifyCustomerId])
+}
+
+model RedeemedCode {
+  id                String   @id @default(cuid())
+  shopifyCustomerId String
+  discountCode      String
+  pointsCost        Int
+  discountValue     String   // e.g. "₹50"
+  used              Boolean  @default(false)
+  expiresAt         DateTime?
+  createdAt         DateTime @default(now())
+
+  @@index([shopifyCustomerId])
+}
+model LoyaltySettings {
+  id               String @id
+  pointsPerRupee   Float  @default(0.01)
+  silverThreshold  Int    @default(500)
+  goldThreshold    Int    @default(1500)
+  redeem500Value   Int    @default(50)
+  redeem1000Value  Int    @default(120)
+  redeem2000Value  Int    @default(300)
+}
