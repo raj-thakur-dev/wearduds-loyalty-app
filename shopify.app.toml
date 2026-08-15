@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "44cd3df4497a66a36c76e7e680b563c2"
-application_url = "https://example.com"
+application_url = "https://wearduds-loyalty-app-production-4a64.up.railway.app"
 embedded = true
 name = "wearduds-loyalty"
 
@@ -45,7 +45,7 @@ api_version = "2026-10"
   topics = [ "app/scopes_update" ]
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [ "https://wearduds-loyalty-app-production-4a64.up.railway.app/api/auth" ]
 
 [build]
 automatically_update_urls_on_dev = true
