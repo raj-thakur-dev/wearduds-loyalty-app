@@ -37,17 +37,37 @@ export function calcPoints(orderAmount, tier) {
  * balance and total spent, checks for a tier change, and logs the
  * transaction.
  *
+ * Idempotent: if a points_transactions row already exists for this
+ * order_id, the function returns early without double-awarding.
+ *
  * @param {string} shopifyCustomerId - The customer's Shopify ID.
  * @param {number} orderTotal - The total order amount in rupees.
  * @param {string} orderId - The Shopify order ID.
- * @returns {Promise<{pointsEarned: number, newBalance: number, newTier: string, tierChanged: boolean}>}
+ * @returns {Promise<{pointsEarned: number, newBalance: number, newTier: string, tierChanged: boolean, alreadyProcessed?: boolean}>}
  */
 export async function awardPoints(shopifyCustomerId, orderTotal, orderId) {
   try {
-    // 1. Fetch the existing member record
+    // 0. Idempotency guard — has this order already been processed?
+    const { data: existingTx, error: existingTxError } = await supabase
+      .from('points_transactions')
+      .select('id')
+      .eq('order_id', orderId)
+      .eq('type', 'earned')
+      .maybeSingle();
+
+    if (existingTxError) {
+      throw new Error(`Failed to check for existing transaction: ${existingTxError.message}`);
+    }
+
+    if (existingTx) {
+      console.log(`[awardPoints] Order ${orderId} already processed — skipping duplicate webhook.`);
+      return { pointsEarned: 0, newBalance: null, newTier: null, tierChanged: false, alreadyProcessed: true };
+    }
+
+    // 1. Fetch the existing member record (need internal id + balances)
     const { data: member, error: fetchError } = await supabase
       .from('loyalty_members')
-      .select('*')
+      .select('id, points_balance, total_spent')
       .eq('shopify_customer_id', shopifyCustomerId)
       .single();
 
@@ -76,25 +96,40 @@ export async function awardPoints(shopifyCustomerId, orderTotal, orderId) {
         total_spent: newTotalSpent,
         tier: newTier,
       })
-      .eq('shopify_customer_id', shopifyCustomerId);
+      .eq('id', member.id);
 
     if (updateError) {
       throw new Error(`Failed to update loyalty member: ${updateError.message}`);
     }
 
-    // 5. Log the transaction
+    // 5. Log the transaction — using the REAL column names
     const { error: insertError } = await supabase
       .from('points_transactions')
       .insert({
-        shopify_customer_id: shopifyCustomerId,
+        member_id: member.id,               // internal uuid, not shopify id
         order_id: orderId,
-        points_earned: pointsEarned,
-        order_total: orderTotal,
-        tier_at_time: previousTier,
+        points: pointsEarned,                // "points", not "points_earned"
+        type: 'earned',
+        order_amount: orderTotal,            // "order_amount", not "order_total"
+        description: `Order #${orderId} — ₹${orderTotal} × ${
+          previousTier === 'legend' ? '2.0' : previousTier === 'streeter' ? '1.5' : '1.0'
+        } = ${pointsEarned} pts`,
+        created_by: 'system',
       });
 
     if (insertError) {
-      throw new Error(`Failed to log points transaction: ${insertError.message}`);
+      // If this fails, the balance update above already succeeded — roll it back
+      // rather than leaving points_balance out of sync with the transaction log.
+      await supabase
+        .from('loyalty_members')
+        .update({
+          points_balance: member.points_balance,
+          total_spent: member.total_spent,
+          tier: previousTier,
+        })
+        .eq('id', member.id);
+
+      throw new Error(`Failed to log points transaction (balance update rolled back): ${insertError.message}`);
     }
 
     return { pointsEarned, newBalance, newTier, tierChanged };

@@ -38,6 +38,5 @@ model LoyaltyMember {
   email             String?
   firstName         String?
   points            Int      @default(0)
-  tier              String   @default("Bronze")
-  ...
+  tier          String    @default("Bronze")
 }
