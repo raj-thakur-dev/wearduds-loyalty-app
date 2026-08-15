@@ -1,0 +1,479 @@
+{% comment %}
+  WearDuds Loyalty Dashboard - Full page block for /pages/loyalty
+{% endcomment %}
+
+<div id="wd-dashboard">
+  {% if customer %}
+    <div id="wd-dashboard-loading">Loading your rewards...</div>
+
+    <div id="wd-dashboard-content" style="display: none;">
+
+      <!-- Hero Card -->
+      <section class="wd-hero-card">
+        <div class="wd-hero-label">DUDS CREW MEMBER</div>
+        <div class="wd-hero-points" id="wd-hero-points">--</div>
+        <div class="wd-hero-points-label">points</div>
+        <div class="wd-hero-tier" id="wd-hero-tier">--</div>
+      </section>
+
+      <!-- Tier Progress -->
+      <section class="wd-section">
+        <h2 class="wd-section-title">Tier Progress</h2>
+        <div class="wd-progress-bar">
+          <div class="wd-progress-fill" id="wd-dash-progress-fill" style="width: 0%;"></div>
+        </div>
+        <p class="wd-progress-text" id="wd-dash-progress-text">Loading...</p>
+        <ul class="wd-perks-list" id="wd-perks-list"></ul>
+      </section>
+
+      <!-- Redeem Rewards -->
+      <section class="wd-section">
+        <h2 class="wd-section-title">Redeem Rewards</h2>
+        <div class="wd-redeem-grid" id="wd-redeem-grid"></div>
+      </section>
+
+      <!-- Active Codes -->
+      <section class="wd-section">
+        <h2 class="wd-section-title">Active Codes</h2>
+        <div id="wd-active-codes">
+          <p class="wd-empty-text">No active codes yet.</p>
+        </div>
+      </section>
+
+      <!-- Transaction History -->
+      <section class="wd-section">
+        <h2 class="wd-section-title">Transaction History</h2>
+        <div id="wd-transaction-list">
+          <p class="wd-empty-text">No transactions yet.</p>
+        </div>
+      </section>
+
+    </div>
+
+    <div id="wd-dashboard-error" style="display: none;">
+      <p>We couldn't load your rewards right now. Please try refreshing the page.</p>
+    </div>
+
+  {% else %}
+    <div class="wd-guest-block">
+      <h2>Join DUDS CREW</h2>
+      <p>Sign in to view your points, tier, and rewards.</p>
+      <a href="/account/login" class="wd-btn-primary">Sign In</a>
+    </div>
+  {% endif %}
+</div>
+
+<style>
+  #wd-dashboard {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 32px 20px 64px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: #ffffff;
+  }
+
+  #wd-dashboard-loading,
+  .wd-empty-text {
+    color: #999999;
+    text-align: center;
+    padding: 24px 0;
+  }
+
+  .wd-hero-card {
+    background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+    border-radius: 16px;
+    padding: 32px 24px;
+    text-align: center;
+    margin-bottom: 32px;
+  }
+
+  .wd-hero-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: rgba(255,255,255,0.8);
+    margin-bottom: 12px;
+  }
+
+  .wd-hero-points {
+    font-size: 56px;
+    font-weight: 800;
+    color: #ffffff;
+    line-height: 1;
+  }
+
+  .wd-hero-points-label {
+    font-size: 13px;
+    color: rgba(255,255,255,0.7);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 16px;
+  }
+
+  .wd-hero-tier {
+    display: inline-block;
+    background: rgba(255,255,255,0.2);
+    padding: 6px 18px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 14px;
+  }
+
+  .wd-section {
+    background: #111111;
+    border: 1px solid #2a2a2a;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  .wd-section-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0 0 16px 0;
+    color: #ffffff;
+  }
+
+  .wd-progress-bar {
+    background: #2a2a2a;
+    height: 10px;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 10px;
+  }
+
+  .wd-progress-fill {
+    background: #7c3aed;
+    height: 100%;
+    transition: width 0.5s ease;
+  }
+
+  .wd-progress-text {
+    font-size: 13px;
+    color: #999999;
+    margin-bottom: 16px;
+  }
+
+  .wd-perks-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .wd-perks-list li {
+    font-size: 14px;
+    color: #cccccc;
+    padding: 8px 0;
+    border-top: 1px solid #2a2a2a;
+  }
+
+  .wd-perks-list li:first-child {
+    border-top: none;
+  }
+
+  .wd-perks-list li::before {
+    content: "✓ ";
+    color: #7c3aed;
+    font-weight: 700;
+  }
+
+  .wd-redeem-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+  }
+
+  .wd-redeem-card {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+  }
+
+  .wd-redeem-value {
+    font-size: 22px;
+    font-weight: 800;
+    color: #ffffff;
+    margin-bottom: 4px;
+  }
+
+  .wd-redeem-cost {
+    font-size: 12px;
+    color: #999999;
+    margin-bottom: 12px;
+  }
+
+  .wd-btn-primary {
+    display: block;
+    width: 100%;
+    background: #7c3aed;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: center;
+    transition: background 0.2s ease;
+  }
+
+  .wd-btn-primary:hover {
+    background: #6d28d9;
+  }
+
+  .wd-btn-primary:disabled {
+    background: #3a3a3a;
+    color: #777777;
+    cursor: not-allowed;
+  }
+
+  .wd-code-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-top: 1px solid #2a2a2a;
+  }
+
+  .wd-code-row:first-child {
+    border-top: none;
+  }
+
+  .wd-code-info .wd-code-value {
+    font-weight: 700;
+    color: #ffffff;
+  }
+
+  .wd-code-info .wd-code-expiry {
+    font-size: 12px;
+    color: #999999;
+  }
+
+  .wd-copy-btn {
+    background: #2a2a2a;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .wd-copy-btn:hover {
+    background: #3a3a3a;
+  }
+
+  .wd-tx-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-top: 1px solid #2a2a2a;
+    font-size: 13px;
+  }
+
+  .wd-tx-row:first-child {
+    border-top: none;
+  }
+
+  .wd-tx-desc {
+    color: #cccccc;
+  }
+
+  .wd-tx-date {
+    color: #777777;
+    font-size: 11px;
+    display: block;
+    margin-top: 2px;
+  }
+
+  .wd-tx-points.positive {
+    color: #4ade80;
+    font-weight: 700;
+  }
+
+  .wd-tx-points.negative {
+    color: #f87171;
+    font-weight: 700;
+  }
+
+  .wd-guest-block {
+    text-align: center;
+    padding: 64px 20px;
+  }
+
+  .wd-guest-block h2 {
+    font-size: 22px;
+    margin-bottom: 12px;
+  }
+
+  .wd-guest-block p {
+    color: #999999;
+    margin-bottom: 24px;
+  }
+
+  .wd-guest-block .wd-btn-primary {
+    max-width: 240px;
+    margin: 0 auto;
+  }
+
+  #wd-dashboard-error {
+    text-align: center;
+    color: #f87171;
+    padding: 40px 0;
+  }
+</style>
+
+{% if customer %}
+<script>
+  (function () {
+    var customerId = {{ customer.id | json }};
+
+    function fmtDate(iso) {
+      var d = new Date(iso);
+      return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+
+    function render(data) {
+      document.getElementById('wd-hero-points').textContent = data.points;
+      document.getElementById('wd-hero-tier').textContent = data.tier;
+
+      document.getElementById('wd-dash-progress-fill').style.width = data.progressPercent + '%';
+      document.getElementById('wd-dash-progress-text').textContent = data.pointsToNextTier
+        ? data.pointsToNextTier + ' points to ' + data.nextTier
+        : 'You\'ve reached the top tier!';
+
+      var perksList = document.getElementById('wd-perks-list');
+      perksList.innerHTML = '';
+      (data.perks || []).forEach(function (perk) {
+        var li = document.createElement('li');
+        li.textContent = perk;
+        perksList.appendChild(li);
+      });
+
+      var redeemGrid = document.getElementById('wd-redeem-grid');
+      redeemGrid.innerHTML = '';
+      (data.redeemOptions || []).forEach(function (opt) {
+        var card = document.createElement('div');
+        card.className = 'wd-redeem-card';
+        card.innerHTML =
+          '<div class="wd-redeem-value">' + opt.label + '</div>' +
+          '<div class="wd-redeem-cost">' + opt.points + ' points</div>' +
+          '<button class="wd-btn-primary" data-points="' + opt.points + '" ' + (opt.canRedeem ? '' : 'disabled') + '>' +
+          (opt.canRedeem ? 'Redeem' : 'Not enough points') +
+          '</button>';
+        redeemGrid.appendChild(card);
+      });
+
+      redeemGrid.querySelectorAll('button[data-points]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          redeemPoints(parseInt(btn.getAttribute('data-points'), 10), btn);
+        });
+      });
+
+      var codesWrap = document.getElementById('wd-active-codes');
+      if (data.activeCodes && data.activeCodes.length > 0) {
+        codesWrap.innerHTML = '';
+        data.activeCodes.forEach(function (c) {
+          var row = document.createElement('div');
+          row.className = 'wd-code-row';
+          row.innerHTML =
+            '<div class="wd-code-info">' +
+              '<div class="wd-code-value">' + c.code + ' (' + c.value + ')</div>' +
+              '<div class="wd-code-expiry">' + (c.expiresAt ? 'Expires ' + fmtDate(c.expiresAt) : 'No expiry') + '</div>' +
+            '</div>' +
+            '<button class="wd-copy-btn" data-code="' + c.code + '">Copy</button>';
+          codesWrap.appendChild(row);
+        });
+        codesWrap.querySelectorAll('button[data-code]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            navigator.clipboard.writeText(btn.getAttribute('data-code'));
+            btn.textContent = 'Copied!';
+            setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
+          });
+        });
+      } else {
+        codesWrap.innerHTML = '<p class="wd-empty-text">No active codes yet.</p>';
+      }
+
+      var txWrap = document.getElementById('wd-transaction-list');
+      if (data.transactions && data.transactions.length > 0) {
+        txWrap.innerHTML = '';
+        data.transactions.forEach(function (t) {
+          var row = document.createElement('div');
+          row.className = 'wd-tx-row';
+          var isPositive = t.points >= 0;
+          row.innerHTML =
+            '<div>' +
+              '<div class="wd-tx-desc">' + t.description + '</div>' +
+              '<span class="wd-tx-date">' + fmtDate(t.date) + '</span>' +
+            '</div>' +
+            '<div class="wd-tx-points ' + (isPositive ? 'positive' : 'negative') + '">' +
+              (isPositive ? '+' : '') + t.points +
+            '</div>';
+          txWrap.appendChild(row);
+        });
+      } else {
+        txWrap.innerHTML = '<p class="wd-empty-text">No transactions yet.</p>';
+      }
+
+      document.getElementById('wd-dashboard-loading').style.display = 'none';
+      document.getElementById('wd-dashboard-content').style.display = 'block';
+    }
+
+    function loadDashboard() {
+      fetch('/apps/loyalty/api/loyalty/dashboard?customer_id=' + encodeURIComponent(customerId))
+        .then(function (res) {
+          if (!res.ok) throw new Error('Failed to load');
+          return res.json();
+        })
+        .then(render)
+        .catch(function (err) {
+          console.error('WearDuds Loyalty Dashboard error:', err);
+          document.getElementById('wd-dashboard-loading').style.display = 'none';
+          document.getElementById('wd-dashboard-error').style.display = 'block';
+        });
+    }
+
+    function redeemPoints(points, btn) {
+      btn.disabled = true;
+      btn.textContent = 'Redeeming...';
+
+      fetch('/apps/loyalty/api/loyalty/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customer_id: customerId, points_cost: points }),
+      })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (data.error) {
+            alert('Redemption failed: ' + data.error);
+            btn.disabled = false;
+            btn.textContent = 'Redeem';
+            return;
+          }
+          alert('Success! Your code: ' + data.code + ' (' + data.value + ')');
+          loadDashboard();
+        })
+        .catch(function () {
+          alert('Something went wrong. Please try again.');
+          btn.disabled = false;
+          btn.textContent = 'Redeem';
+        });
+    }
+
+    loadDashboard();
+  })();
+</script>
+{% endif %}
+
+{% schema %}
+{
+  "name": "WearDuds Loyalty Dashboard",
+  "target": "section",
+  "settings": []
+}
+{% endschema %}
