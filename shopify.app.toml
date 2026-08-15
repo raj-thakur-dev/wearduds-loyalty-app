@@ -33,6 +33,12 @@ required = true
 name = "Description"
 type = "multi_line_text_field"
 
+[app_proxy]
+url = "https://wearduds-loyalty-app-production-4a64.up.railway.app/proxy"
+subpath = "loyalty"
+prefix = "apps"
+
+
 [webhooks]
 api_version = "2026-10"
 
