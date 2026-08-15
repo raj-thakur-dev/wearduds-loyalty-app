@@ -58,7 +58,7 @@
     <div class="wd-guest-block">
       <h2>Join DUDS CREW</h2>
       <p>Sign in to view your points, tier, and rewards.</p>
-      <a href="/account/login" class="wd-btn-primary">Sign In</a>
+      <a href="{{ routes.account_login_url }}" class="wd-btn-primary">Sign In</a>
     </div>
   {% endif %}
 </div>
@@ -472,7 +472,7 @@
 
 {% schema %}
 {
-  "name": "WearDuds Loyalty Dashboard",
+  "name": "Loyalty Dashboard",
   "target": "section",
   "settings": []
 }
