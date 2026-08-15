@@ -1,11 +1,6 @@
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-
-const REDEEM_OPTIONS = {
-  500: { value: "₹50", amount: 50 },
-  1000: { value: "₹120", amount: 120 },
-  2000: { value: "₹300", amount: 300 },
-};
+import { getLoyaltySettings, getRedeemOptions } from "../loyalty-settings.server";
 
 export async function action({ request }) {
   const { admin } = await authenticate.public.appProxy(request);
@@ -21,7 +16,10 @@ export async function action({ request }) {
     return Response.json({ error: "Missing customer_id or points_cost" }, { status: 400 });
   }
 
-  const option = REDEEM_OPTIONS[pointsCost];
+  const settings = await getLoyaltySettings();
+  const redeemOptions = getRedeemOptions(settings);
+  const option = redeemOptions.find((opt) => opt.points === Number(pointsCost));
+
   if (!option) {
     return Response.json({ error: "Invalid redemption option" }, { status: 400 });
   }
@@ -35,7 +33,7 @@ export async function action({ request }) {
   }
 
   // Generate a unique code
-  const code = `DUDS-${option.value.replace(/[^0-9]/g, "")}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+  const code = `DUDS-${option.amount}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 
   // Create the discount code in Shopify via Admin API
   const response = await admin.graphql(
