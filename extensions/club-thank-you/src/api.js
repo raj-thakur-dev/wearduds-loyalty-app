@@ -1,5 +1,5 @@
 // Production app URL. For `shopify app dev`, set it to the tunnel URL the CLI prints.
-export const APP_URL = "https://wearduds-loyalty-app-production-4a64.up.railway.app";
+export const APP_URL = "https://wearduds-club.onrender.com";
 
 /** Calls the app with the extension's session token; throws with the server's message. */
 export async function callApp(path, { method = "GET", body } = {}) {

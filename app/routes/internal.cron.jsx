@@ -1,7 +1,7 @@
 import { runAllShops } from "../loyalty/jobs.server";
 import { json, safeEqual } from "../loyalty/http.server";
 
-// Hourly: Railway cron (or any scheduler) calls
+// Hourly: cron-job.org (or any scheduler) calls
 //   POST https://<app>/internal/cron   Authorization: Bearer <CRON_SECRET>
 export async function action({ request }) {
   const token = (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");

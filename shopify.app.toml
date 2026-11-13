@@ -3,7 +3,7 @@
 
 client_id = "44cd3df4497a66a36c76e7e680b563c2"
 name = "Wearduds Club"
-application_url = "https://wearduds-loyalty-app-production-4a64.up.railway.app"
+application_url = "https://wearduds-club.onrender.com"
 embedded = true
 
 [access_scopes]
@@ -11,14 +11,14 @@ scopes = "read_customers,write_customers,read_orders,write_discounts,write_store
 
 [auth]
 redirect_urls = [
-  "https://wearduds-loyalty-app-production-4a64.up.railway.app/auth/callback",
-  "https://wearduds-loyalty-app-production-4a64.up.railway.app/auth/shopify/callback",
-  "https://wearduds-loyalty-app-production-4a64.up.railway.app/api/auth/callback",
+  "https://wearduds-club.onrender.com/auth/callback",
+  "https://wearduds-club.onrender.com/auth/shopify/callback",
+  "https://wearduds-club.onrender.com/api/auth/callback",
 ]
 
 # Storefront calls go to /apps/club/* and are forwarded, signed, to /proxy/*.
 [app_proxy]
-url = "https://wearduds-loyalty-app-production-4a64.up.railway.app/proxy"
+url = "https://wearduds-club.onrender.com/proxy"
 subpath = "club"
 prefix = "apps"
 
