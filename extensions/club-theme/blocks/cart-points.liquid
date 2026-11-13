@@ -1,0 +1,15 @@
+{%- comment -%} Points slider for the cart page or cart drawer. {%- endcomment -%}
+{%- render 'club-config', accent: block.settings.accent -%}
+<div class="wdc" data-wdc-cart style="--wdc-accent: {{ block.settings.accent }};">
+  <div class="wdc-skel" style="height: 132px; margin: 16px 0;" aria-hidden="true"></div>
+</div>
+
+{% schema %}
+{
+  "name": "Pay with points",
+  "target": "section",
+  "settings": [
+    { "type": "color", "id": "accent", "label": "Accent colour", "default": "#FF6B1A" }
+  ]
+}
+{% endschema %}

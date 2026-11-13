@@ -18,6 +18,8 @@ module.exports = {
     browser: true,
     commonjs: true,
     es6: true,
+    // Route modules run loaders/actions on Node, and server modules use process.env.
+    node: true,
   },
   ignorePatterns: ["!**/.server", "!**/.client"],
 
@@ -50,6 +52,9 @@ module.exports = {
       },
       rules: {
         "react/no-unknown-property": ["error", { ignore: ["variant"] }],
+        // Plain JS app without PropTypes; components are internal to each route.
+        "react/prop-types": "off",
+        "react/no-unescaped-entities": ["error", { forbid: [">", "}"] }],
       },
     },
 

@@ -1,0 +1,17 @@
+{%- comment -%} Shared runtime config + assets for every Wearduds Club block. Safe to render more than once. {%- endcomment -%}
+{%- assign club = app.metafields.club.config.value -%}
+<script>
+  window.WDClubConfig = window.WDClubConfig || {
+    proxy: "/apps/club",
+    signedIn: {% if customer %}true{% else %}false{% endif %},
+    loginUrl: {{ routes.account_login_url | json }},
+    registerUrl: {{ routes.account_register_url | default: routes.account_login_url | json }},
+    clubPageUrl: {{ club.widget.clubPageUrl | default: '/pages/wearduds-club' | json }},
+    accent: {{ accent | default: club.widget.accent | default: '#FF6B1A' | json }},
+    showLauncher: {{ show_launcher | default: false | json }},
+    launcherLabel: {{ launcher_label | default: club.widget.launcherLabel | default: 'Rewards' | json }},
+    launcherPosition: {{ launcher_position | default: club.widget.launcherPosition | default: 'right' | json }}
+  };
+</script>
+{{ 'club.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'club.js' | asset_url }}" defer></script>

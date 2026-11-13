@@ -1,57 +1,103 @@
-# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+# Wearduds Club: custom loyalty app for Wearduds.
+# Learn more: https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "44cd3df4497a66a36c76e7e680b563c2"
+name = "Wearduds Club"
 application_url = "https://wearduds-loyalty-app-production-4a64.up.railway.app"
 embedded = true
-name = "wearduds-loyalty"
 
 [access_scopes]
-# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_products,write_metaobjects,write_metaobject_definitions"
-
-[product.metafields.app.demo_info]
-type = "single_line_text_field"
-name = "Demo Source Info"
-description = "Tracks products created by the Shopify app template for development"
-
-  [product.metafields.app.demo_info.access]
-  admin = "merchant_read_write"
-
-[metaobjects.app.example]
-name = "Example"
-description = "An example metaobject definition created by this template"
-
-  [metaobjects.app.example.access]
-  admin = "merchant_read_write"
-
-[metaobjects.app.example.fields.title]
-name = "Title"
-type = "single_line_text_field"
-required = true
-
-[metaobjects.app.example.fields.description]
-name = "Description"
-type = "multi_line_text_field"
-
-[app_proxy]
-url = "https://wearduds-loyalty-app-production-4a64.up.railway.app/proxy"
-subpath = "loyalty"
-prefix = "apps"
-
-
-[webhooks]
-api_version = "2026-10"
-
-  [[webhooks.subscriptions]]
-  uri = "/webhooks/app/uninstalled"
-  topics = [ "app/uninstalled" ]
-
-  [[webhooks.subscriptions]]
-  uri = "/webhooks/app/scopes_update"
-  topics = [ "app/scopes_update" ]
+scopes = "read_customers,write_customers,read_orders,write_discounts,write_store_credit_account_transactions"
 
 [auth]
-redirect_urls = [ "https://wearduds-loyalty-app-production-4a64.up.railway.app/api/auth" ]
+redirect_urls = [
+  "https://wearduds-loyalty-app-production-4a64.up.railway.app/auth/callback",
+  "https://wearduds-loyalty-app-production-4a64.up.railway.app/auth/shopify/callback",
+  "https://wearduds-loyalty-app-production-4a64.up.railway.app/api/auth/callback",
+]
+
+# Storefront calls go to /apps/club/* and are forwarded, signed, to /proxy/*.
+[app_proxy]
+url = "https://wearduds-loyalty-app-production-4a64.up.railway.app/proxy"
+subpath = "club"
+prefix = "apps"
+
+[webhooks]
+api_version = "2026-07"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/uninstalled" ]
+  uri = "/webhooks/app/uninstalled"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/scopes_update" ]
+  uri = "/webhooks/app/scopes_update"
+
+  [[webhooks.subscriptions]]
+  topics = [ "orders/paid" ]
+  uri = "/webhooks/orders/paid"
+
+  [[webhooks.subscriptions]]
+  topics = [ "orders/cancelled" ]
+  uri = "/webhooks/orders/cancelled"
+
+  [[webhooks.subscriptions]]
+  topics = [ "refunds/create" ]
+  uri = "/webhooks/refunds/create"
+
+  [[webhooks.subscriptions]]
+  topics = [ "fulfillments/create", "fulfillments/update" ]
+  uri = "/webhooks/fulfillments"
+
+  [[webhooks.subscriptions]]
+  topics = [ "customers/update" ]
+  uri = "/webhooks/customers/update"
+
+  [[webhooks.subscriptions]]
+  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
+  uri = "/webhooks/compliance"
+
+# Loyalty state mirrored onto each customer (namespace $app). Readable in
+# segments, Klaviyo, Flow, theme Liquid and customer account extensions.
+[customer.metafields.app.points_balance]
+type = "number_integer"
+name = "Club points balance"
+description = "Spendable Wearduds Club points"
+access.admin = "merchant_read"
+access.storefront = "public_read"
+access.customer_account = "read"
+
+[customer.metafields.app.points_pending]
+type = "number_integer"
+name = "Club points pending"
+description = "Points waiting for delivery + return window"
+access.admin = "merchant_read"
+access.storefront = "public_read"
+access.customer_account = "read"
+
+[customer.metafields.app.points_lifetime]
+type = "number_integer"
+name = "Club lifetime points"
+description = "All points ever earned; decides the tier"
+access.admin = "merchant_read"
+access.storefront = "public_read"
+access.customer_account = "read"
+
+[customer.metafields.app.tier]
+type = "single_line_text_field"
+name = "Club tier"
+description = "Silver, Gold or Platinum"
+access.admin = "merchant_read"
+access.storefront = "public_read"
+access.customer_account = "read"
+
+[customer.metafields.app.referral_code]
+type = "single_line_text_field"
+name = "Club referral code"
+access.admin = "merchant_read"
+access.storefront = "public_read"
+access.customer_account = "read"
 
 [build]
 automatically_update_urls_on_dev = true
+include_config_on_deploy = true

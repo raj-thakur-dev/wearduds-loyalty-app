@@ -1,0 +1,14 @@
+api_version = "2026-07"
+
+[[extensions]]
+name = "Club points on thank-you page"
+handle = "club-thank-you"
+type = "ui_extension"
+
+  [[extensions.targeting]]
+  module = "./src/ThankYou.jsx"
+  target = "purchase.thank-you.block.render"
+
+  [extensions.capabilities]
+  network_access = true
+  api_access = true

@@ -1,0 +1,208 @@
+/* Wearduds Club storefront styles.
+   Fonts come from the theme (Scope A decides them); only colour and shape are set here.
+   Concept: the member card is a woven clothing label, orange with a stitched edge. */
+
+.wdc {
+  --wdc-accent: #ff6b1a;
+  --wdc-ink: #000;
+  --wdc-paper: #fff;
+  --wdc-surface: #f3f3f3;
+  --wdc-muted: #5f5f5f;
+  --wdc-line: #e2e2e2;
+  --wdc-good: #0a7a3b;
+  --wdc-bad: #b42318;
+  --wdc-display: var(--font-heading-family, "Archivo Black", "Arial Black", Impact, sans-serif);
+  --wdc-body: var(--font-body-family, Inter, system-ui, -apple-system, "Segoe UI", sans-serif);
+  --wdc-radius: 3px;
+  color: var(--wdc-ink);
+  font-family: var(--wdc-body);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+:where(.wdc) *, :where(.wdc) *::before, :where(.wdc) *::after { box-sizing: border-box; }
+:where(.wdc) :where(button, input, select, textarea) { font: inherit; color: inherit; }
+.wdc :focus-visible { outline: 2px solid var(--wdc-ink); outline-offset: 2px; }
+.wdc [hidden] { display: none !important; }
+.wdc-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- Buttons ---------- */
+.wdc-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; padding: 0 18px; border: 2px solid var(--wdc-ink); border-radius: var(--wdc-radius);
+  background: var(--wdc-ink); color: var(--wdc-paper); font-weight: 700; cursor: pointer;
+  text-decoration: none; transition: transform 120ms ease, background-color 160ms ease;
+}
+.wdc-btn:active { transform: scale(0.97); }
+.wdc-btn--ghost { background: transparent; color: var(--wdc-ink); }
+.wdc-btn--accent { background: var(--wdc-accent); border-color: var(--wdc-accent); color: var(--wdc-ink); }
+.wdc-btn--small { min-height: 36px; padding: 0 12px; font-size: 14px; }
+.wdc-btn--block { width: 100%; }
+.wdc-btn[disabled], .wdc-btn[aria-disabled="true"] { opacity: 0.4; cursor: not-allowed; transform: none; }
+.wdc-link { background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; font-weight: 600; }
+
+/* ---------- The woven label (hero of every surface) ---------- */
+.wdc-label {
+  position: relative; background: var(--wdc-accent); color: var(--wdc-ink);
+  border-radius: var(--wdc-radius); padding: 22px 22px 20px;
+  /* stitched edge */
+  outline: 1.5px dashed rgba(0, 0, 0, 0.42); outline-offset: -8px;
+  /* faint woven texture */
+  background-image: repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.035) 0 1px, transparent 1px 3px);
+}
+.wdc-label__top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.wdc-label__name { font-weight: 700; }
+.wdc-label__tier {
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border: 1.5px solid var(--wdc-ink);
+  border-radius: 999px; font-weight: 700; font-size: 13px; white-space: nowrap;
+}
+.wdc-label__tier i { width: 8px; height: 8px; border-radius: 50%; background: var(--tier, var(--wdc-ink)); display: inline-block; }
+.wdc-label__worth { font-family: var(--wdc-display); font-size: clamp(44px, 12vw, 64px); line-height: 0.95; letter-spacing: -0.02em; margin: 14px 0 6px; font-variant-numeric: tabular-nums; }
+.wdc-label__points { font-weight: 600; font-variant-numeric: tabular-nums; }
+.wdc-label__pending { display: block; font-size: 13px; opacity: 0.8; }
+.wdc-label__guest-title { font-family: var(--wdc-display); font-size: clamp(30px, 8vw, 40px); line-height: 1; letter-spacing: -0.01em; margin: 6px 0 10px; }
+
+/* progress to next tier, drawn as a seam */
+.wdc-progress { margin-top: 16px; }
+.wdc-progress__bar { height: 6px; background: var(--wdc-surface); border-radius: 3px; overflow: hidden; }
+.wdc-progress__fill { height: 100%; background: var(--wdc-ink); width: 0; transition: width 600ms cubic-bezier(.2, .7, .2, 1); }
+.wdc-progress__text { margin-top: 6px; font-size: 13px; color: var(--wdc-muted); }
+
+/* ---------- Tabs ---------- */
+.wdc-tabs { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border-bottom: 2px solid var(--wdc-ink); margin-top: 20px; }
+.wdc-tab { background: none; border: 0; min-height: 44px; font-weight: 700; color: var(--wdc-muted); cursor: pointer; border-bottom: 4px solid transparent; margin-bottom: -2px; }
+.wdc-tab[aria-selected="true"] { color: var(--wdc-ink); border-bottom-color: var(--wdc-accent); }
+.wdc-tabpanel { padding-top: 8px; }
+
+/* ---------- Lists ---------- */
+.wdc-list { list-style: none; margin: 0; padding: 0; }
+.wdc-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--wdc-line); }
+.wdc-row:last-child { border-bottom: 0; }
+.wdc-row__title { font-weight: 700; }
+.wdc-row__meta { font-size: 13px; color: var(--wdc-muted); }
+.wdc-row__pts { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wdc-row__pts--minus { color: var(--wdc-muted); }
+.wdc-done { font-size: 13px; font-weight: 700; color: var(--wdc-good); }
+
+/* reward rows: value is the headline, price in points beneath */
+.wdc-reward__value { font-family: var(--wdc-display); font-size: 22px; line-height: 1.1; letter-spacing: -0.01em; }
+.wdc-reward--locked .wdc-reward__value { color: var(--wdc-muted); }
+.wdc-confirm { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--wdc-surface); padding: 12px; border-radius: var(--wdc-radius); }
+.wdc-confirm p { margin: 0 auto 0 0; font-size: 14px; }
+
+/* issued codes look like a price tag: perforated left edge */
+.wdc-code {
+  display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center;
+  border: 2px solid var(--wdc-ink); border-left-style: dashed; border-radius: var(--wdc-radius);
+  padding: 12px 14px; margin: 10px 0;
+}
+.wdc-code__value { font-family: var(--wdc-display); font-size: 18px; letter-spacing: 0.02em; overflow-wrap: anywhere; min-width: 0; }
+.wdc-code__meta { grid-column: 1 / -1; font-size: 13px; color: var(--wdc-muted); }
+.wdc-code__actions { display: flex; gap: 8px; }
+
+.wdc-section-title { font-family: var(--wdc-display); font-size: 20px; line-height: 1.15; margin: 24px 0 4px; letter-spacing: -0.01em; }
+.wdc-note { font-size: 13px; color: var(--wdc-muted); margin: 4px 0 0; }
+.wdc-alert { padding: 10px 12px; border-radius: var(--wdc-radius); font-size: 14px; margin: 10px 0; }
+.wdc-alert--error { background: #fdecea; color: var(--wdc-bad); }
+.wdc-alert--ok { background: #e8f5ee; color: var(--wdc-good); }
+
+.wdc-field { display: grid; gap: 4px; }
+.wdc-field label { font-size: 13px; font-weight: 600; }
+.wdc-input, .wdc-select { min-height: 44px; border: 1.5px solid var(--wdc-ink); border-radius: var(--wdc-radius); padding: 0 12px; background: var(--wdc-paper); width: 100%; }
+.wdc-inline { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
+.wdc-inline > * { flex: 1 1 120px; }
+
+/* skeleton while loading (reserves space, no layout shift) */
+.wdc-skel { background: linear-gradient(90deg, var(--wdc-surface) 0 40%, #e9e9e9 50%, var(--wdc-surface) 60% 100%); background-size: 300% 100%; animation: wdc-shimmer 1.2s linear infinite; border-radius: var(--wdc-radius); }
+@keyframes wdc-shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+
+/* ---------- Floating launcher + panel ---------- */
+.wdc-launcher {
+  position: fixed; z-index: 2147483000; bottom: calc(16px + env(safe-area-inset-bottom)); right: 16px;
+  display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 18px 0 14px;
+  border: 2px solid var(--wdc-ink); border-radius: 999px; background: var(--wdc-accent); color: var(--wdc-ink);
+  font-weight: 800; cursor: pointer; box-shadow: 3px 3px 0 var(--wdc-ink);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+.wdc-launcher:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--wdc-ink); }
+.wdc-launcher--left { right: auto; left: 16px; }
+.wdc-launcher__pts { font-variant-numeric: tabular-nums; }
+.wdc-launcher svg { width: 20px; height: 20px; }
+/* lift above a theme's sticky bottom nav if it sets this variable */
+@media (max-width: 749px) { .wdc-launcher { bottom: calc(var(--wdc-bottom-offset, 16px) + env(safe-area-inset-bottom)); } }
+
+.wdc-overlay { position: fixed; inset: 0; z-index: 2147483001; background: rgba(0, 0, 0, 0.45); opacity: 0; transition: opacity 200ms ease; }
+.wdc-overlay.is-open { opacity: 1; }
+.wdc-panel {
+  position: fixed; z-index: 2147483002; background: var(--wdc-paper); display: flex; flex-direction: column;
+  /* mobile: bottom sheet */
+  left: 0; right: 0; bottom: 0; max-height: 92dvh; border-radius: 12px 12px 0 0;
+  transform: translateY(100%); transition: transform 260ms cubic-bezier(.2, .8, .2, 1);
+}
+.wdc-panel.is-open { transform: none; }
+@media (min-width: 750px) {
+  .wdc-panel { left: auto; top: 0; width: 420px; max-height: none; border-radius: 0; transform: translateX(100%); border-left: 2px solid var(--wdc-ink); }
+}
+.wdc-panel__head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--wdc-line); }
+.wdc-panel__title { font-family: var(--wdc-display); font-size: 18px; margin: 0; }
+.wdc-panel__close { width: 44px; height: 44px; border: 0; background: none; cursor: pointer; display: grid; place-items: center; margin-right: -10px; }
+.wdc-panel__body { overflow-y: auto; padding: 18px 18px calc(24px + env(safe-area-inset-bottom)); overscroll-behavior: contain; }
+.wdc-grabber { width: 40px; height: 4px; border-radius: 2px; background: var(--wdc-line); margin: 8px auto 0; }
+@media (min-width: 750px) { .wdc-grabber { display: none; } }
+html.wdc-locked { overflow: hidden; }
+
+/* ---------- Club page section ---------- */
+.wdc-page { max-width: 1120px; margin: 0 auto; padding: 32px 16px 64px; }
+.wdc-page__hero { display: grid; gap: 28px; align-items: center; }
+@media (min-width: 900px) { .wdc-page__hero { grid-template-columns: 1.1fr 0.9fr; gap: 56px; } }
+.wdc-page__headline { font-family: var(--wdc-display); font-size: clamp(40px, 8vw, 84px); line-height: 0.92; letter-spacing: -0.03em; margin: 0 0 16px; }
+.wdc-page__lede { font-size: 17px; max-width: 46ch; margin: 0 0 20px; color: #2a2a2a; }
+.wdc-page__actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.wdc-page__label { transform: rotate(-2deg); max-width: 420px; justify-self: center; width: 100%; box-shadow: 6px 6px 0 var(--wdc-ink); }
+.wdc-page__grid { display: grid; gap: 40px; margin-top: 56px; }
+@media (min-width: 900px) { .wdc-page__grid { grid-template-columns: 1fr 1fr; } }
+.wdc-page h2 { font-family: var(--wdc-display); font-size: clamp(26px, 4vw, 36px); line-height: 1; letter-spacing: -0.02em; margin: 0 0 6px; }
+.wdc-page__sub { color: var(--wdc-muted); margin: 0 0 12px; }
+
+.wdc-rewards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-top: 12px; }
+.wdc-tag {
+  position: relative; border: 2px solid var(--wdc-ink); border-radius: var(--wdc-radius); padding: 18px 14px 14px; display: grid; gap: 6px; align-content: start;
+}
+/* swing-tag hole */
+.wdc-tag::before { content: ""; position: absolute; top: 8px; right: 10px; width: 10px; height: 10px; border: 2px solid var(--wdc-ink); border-radius: 50%; }
+.wdc-tag--locked { border-color: var(--wdc-line); color: var(--wdc-muted); }
+.wdc-tag--locked::before { border-color: var(--wdc-line); }
+.wdc-tag__value { font-family: var(--wdc-display); font-size: 26px; line-height: 1; letter-spacing: -0.02em; }
+.wdc-tag__meta { font-size: 13px; color: var(--wdc-muted); }
+
+.wdc-tiers { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
+.wdc-tiers th, .wdc-tiers td { text-align: left; vertical-align: top; padding: 12px 10px; border-bottom: 1px solid var(--wdc-line); }
+.wdc-tiers thead th { border-bottom: 2px solid var(--wdc-ink); font-family: var(--wdc-display); font-size: 18px; font-weight: 400; }
+.wdc-tiers tbody th { font-weight: 600; color: var(--wdc-muted); width: 34%; }
+.wdc-tiers .is-current { background: color-mix(in srgb, var(--wdc-accent) 14%, transparent); }
+.wdc-tiers-wrap { overflow-x: auto; }
+
+.wdc-faq details { border-bottom: 1px solid var(--wdc-line); }
+.wdc-faq summary { cursor: pointer; padding: 16px 0; font-weight: 700; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+.wdc-faq summary::-webkit-details-marker { display: none; }
+.wdc-faq summary::after { content: "+"; font-size: 22px; line-height: 1; }
+.wdc-faq details[open] summary::after { content: "–"; }
+.wdc-faq p { margin: 0 0 16px; color: #2a2a2a; max-width: 64ch; }
+
+/* ---------- Cart + product blocks ---------- */
+.wdc-cart { border: 2px solid var(--wdc-ink); border-radius: var(--wdc-radius); padding: 16px; margin: 16px 0; }
+.wdc-cart__head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.wdc-cart__title { font-weight: 800; }
+.wdc-cart__value { font-family: var(--wdc-display); font-size: 28px; line-height: 1; margin: 10px 0 4px; font-variant-numeric: tabular-nums; }
+.wdc-range { width: 100%; accent-color: var(--wdc-accent); height: 32px; }
+.wdc-product-points { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1.5px dashed var(--wdc-ink); border-radius: var(--wdc-radius); font-size: 14px; margin: 12px 0; }
+.wdc-product-points strong { font-variant-numeric: tabular-nums; }
+.wdc-dot { width: 22px; height: 22px; border-radius: 50%; background: var(--wdc-accent); border: 2px solid var(--wdc-ink); flex: 0 0 auto; }
+
+/* ---------- Celebration on tier-up / code issued (single orchestrated moment) ---------- */
+.wdc-pop { animation: wdc-pop 420ms cubic-bezier(.2, 1.4, .4, 1); }
+@keyframes wdc-pop { 0% { transform: scale(0.94); } 60% { transform: scale(1.03); } 100% { transform: scale(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .wdc *, .wdc-panel, .wdc-overlay, .wdc-launcher { transition: none !important; animation: none !important; }
+}

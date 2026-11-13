@@ -19,6 +19,15 @@ const shopify = shopifyApp({
   future: {
     expiringOfflineAccessTokens: true,
   },
+  hooks: {
+    afterAuth: async ({ session, admin }) => {
+      // Seed program defaults and publish the storefront config on install.
+      const { publishConfig } = await import("./loyalty/config.server");
+      await publishConfig(session.shop, admin).catch((err) =>
+        console.error("[club] publish config after auth failed:", err.message),
+      );
+    },
+  },
   ...(process.env.SHOP_CUSTOM_DOMAIN
     ? { customShopDomains: [process.env.SHOP_CUSTOM_DOMAIN] }
     : {}),

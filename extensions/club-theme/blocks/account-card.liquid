@@ -1,0 +1,15 @@
+{%- comment -%} Club card for themes using classic customer accounts (/account). New customer accounts use the Rewards page extension instead. {%- endcomment -%}
+{%- render 'club-config', accent: block.settings.accent -%}
+<div class="wdc" data-wdc-account style="--wdc-accent: {{ block.settings.accent }}; max-width: 520px; margin: 24px 0;">
+  <div class="wdc-skel" style="height: 180px;" aria-hidden="true"></div>
+</div>
+
+{% schema %}
+{
+  "name": "Club account card",
+  "target": "section",
+  "settings": [
+    { "type": "color", "id": "accent", "label": "Accent colour", "default": "#FF6B1A" }
+  ]
+}
+{% endschema %}

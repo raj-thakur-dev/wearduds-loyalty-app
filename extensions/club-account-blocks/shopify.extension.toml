@@ -1,0 +1,18 @@
+api_version = "2026-07"
+
+[[extensions]]
+name = "Club card"
+handle = "club-account-blocks"
+type = "ui_extension"
+
+  [[extensions.targeting]]
+  module = "./src/ProfileCard.jsx"
+  target = "customer-account.profile.block.render"
+
+  [[extensions.targeting]]
+  module = "./src/OrderPoints.jsx"
+  target = "customer-account.order-status.block.render"
+
+  [extensions.capabilities]
+  network_access = true
+  api_access = true
