@@ -1,8 +1,7 @@
 {
   "name": "wearduds-loyalty",
   "private": true,
-    "packageManager": "pnpm@9.15.0",
-    
+  "packageManager": "pnpm@9.15.0",
   "scripts": {
     "build": "react-router build",
     "dev": "shopify app dev",
@@ -26,6 +25,7 @@
     "node": ">=20.19 <22 || >=22.12"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "6.19.3",
     "@prisma/client": "^6.16.3",
     "@react-router/dev": "^7.12.0",
     "@react-router/fs-routes": "^7.12.0",
@@ -34,8 +34,8 @@
     "@shopify/app-bridge-react": "^4.2.4",
     "@shopify/shopify-app-react-router": "^1.2.1",
     "@shopify/shopify-app-session-storage-prisma": "^9.0.0",
-    "@supabase/supabase-js": "^2.112.3",
     "isbot": "^5.1.31",
+    "pg": "^8.23.1",
     "prisma": "^6.16.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -60,7 +60,8 @@
     "graphql-config": "^5.1.1",
     "prettier": "^3.6.2",
     "typescript": "^5.9.3",
-    "vite": "^6.3.6"
+    "vite": "^6.3.6",
+    "vitest": "^3"
   },
   "workspaces": [
     "extensions/*"

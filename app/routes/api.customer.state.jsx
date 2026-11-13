@@ -1,0 +1,16 @@
+import { buildState } from "../loyalty/storefront.server";
+import { customerAccountContext } from "../loyalty/extension-auth.server";
+import { errorResponse, json } from "../loyalty/http.server";
+
+// GET from the customer account Rewards page / profile block.
+export async function loader({ request }) {
+  let cors = (r) => r;
+  try {
+    const ctx = await customerAccountContext(request);
+    cors = ctx.cors;
+    const state = await buildState(ctx.shop, ctx.customerId, { admin: ctx.admin });
+    return cors(json(state));
+  } catch (err) {
+    return errorResponse(err, cors);
+  }
+}

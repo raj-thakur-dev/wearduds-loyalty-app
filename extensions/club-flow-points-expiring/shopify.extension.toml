@@ -1,0 +1,26 @@
+[[extensions]]
+name = "Club points expiring"
+type = "flow_trigger"
+handle = "club-points-expiring"
+description = "Some of a member's points expire soon (sent once, a set number of days before)."
+
+  [settings]
+
+    [[settings.fields]]
+    type = "customer_reference"
+
+    [[settings.fields]]
+    type = "number_integer"
+    key = "Points expiring"
+
+    [[settings.fields]]
+    type = "single_line_text_field"
+    key = "Expiry date"
+
+    [[settings.fields]]
+    type = "number_integer"
+    key = "Points balance"
+
+    [[settings.fields]]
+    type = "single_line_text_field"
+    key = "Tier"

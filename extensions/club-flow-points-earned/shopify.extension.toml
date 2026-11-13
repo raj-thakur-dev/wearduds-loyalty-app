@@ -1,0 +1,26 @@
+[[extensions]]
+name = "Club points earned"
+type = "flow_trigger"
+handle = "club-points-earned"
+description = "A Wearduds Club member earned spendable points (order unlocked, review, birthday, referral and more)."
+
+  [settings]
+
+    [[settings.fields]]
+    type = "customer_reference"
+
+    [[settings.fields]]
+    type = "number_integer"
+    key = "Points earned"
+
+    [[settings.fields]]
+    type = "single_line_text_field"
+    key = "Reason"
+
+    [[settings.fields]]
+    type = "number_integer"
+    key = "Points balance"
+
+    [[settings.fields]]
+    type = "single_line_text_field"
+    key = "Tier"

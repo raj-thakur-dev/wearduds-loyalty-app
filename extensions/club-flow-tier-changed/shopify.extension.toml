@@ -1,0 +1,30 @@
+[[extensions]]
+name = "Club tier changed"
+type = "flow_trigger"
+handle = "club-tier-changed"
+description = "A Wearduds Club member moved up (or down) a tier."
+
+  [settings]
+
+    [[settings.fields]]
+    type = "customer_reference"
+
+    [[settings.fields]]
+    type = "single_line_text_field"
+    key = "Previous tier"
+
+    [[settings.fields]]
+    type = "single_line_text_field"
+    key = "New tier"
+
+    [[settings.fields]]
+    type = "single_line_text_field"
+    key = "Direction"
+
+    [[settings.fields]]
+    type = "number_integer"
+    key = "Points balance"
+
+    [[settings.fields]]
+    type = "single_line_text_field"
+    key = "Tier"

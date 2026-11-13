@@ -1,74 +1,330 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// Wearduds Club: loyalty data model.
+// Every table is scoped by `shop` so the dev store and production store never mix.
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["queryCompiler", "driverAdapters"]
+  engineType      = "client"
 }
 
-// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
-// enough when changing adapters.
-// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
 datasource db {
-  provider = "sqlite"
-  url      = "file:dev.sqlite"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model Session {
-  id            String    @id
-  shop          String
-  state         String
-  isOnline      Boolean   @default(false)
-  scope         String?
-  expires       DateTime?
-  accessToken   String
-  userId        BigInt?
-  firstName     String?
-  lastName      String?
-  email         String?
-  accountOwner  Boolean   @default(false)
-  locale        String?
-  collaborator  Boolean?  @default(false)
-  emailVerified Boolean?  @default(false)
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
 }
-model LoyaltyMember {
-  id                String   @id @default(cuid())
-  shopifyCustomerId String   @unique
-  email             String?
-  firstName         String?
-  points            Int      @default(0)
-  tier          String    @default("Bronze")
+
+enum CreditTrigger {
+  PAID
+  FULFILLED
+  DELIVERED
 }
 
-model LoyaltyTransaction {
-  id                String   @id @default(cuid())
-  shopifyCustomerId String
-  description       String
-  points            Int      // positive = earned, negative = redeemed
-  createdAt         DateTime @default(now())
-
-  @@index([shopifyCustomerId])
+/// One row per shop. Earn rules and widget copy live in JSON so admins can add
+/// rules without a migration; they are validated in app/loyalty/settings.server.js.
+model ProgramSettings {
+  shop                     String        @id
+  programName              String        @default("The Wearduds Club")
+  isLive                   Boolean       @default(false)
+  currencyCode             String        @default("INR")
+  pointsPerCurrency        Float         @default(1) // points earned per ₹1 of eligible spend
+  pointValue               Float         @default(0.1) // ₹ value of one point when redeemed
+  creditTrigger            CreditTrigger @default(DELIVERED)
+  holdDays                 Int           @default(7)
+  fallbackDays             Int           @default(15)
+  expiryDays               Int           @default(365) // 0 = never expire
+  expiryWarningDays        Int           @default(30)
+  maxRedeemPercent         Int           @default(20)
+  codeExpiryDays           Int           @default(90)
+  codePrefix               String        @default("WD")
+  combinesWithProduct      Boolean       @default(false)
+  combinesWithOrder        Boolean       @default(false)
+  combinesWithShipping     Boolean       @default(true)
+  sliderEnabled            Boolean       @default(true)
+  sliderStep               Int           @default(100)
+  sliderMinPoints          Int           @default(500)
+  storeCreditEnabled       Boolean       @default(false)
+  restorePointsOnCancel    Boolean       @default(true)
+  downgradeAfterDays       Int           @default(365) // 0 = never downgrade
+  excludeTags              String[]      @default([])
+  earnRules                Json
+  widget                   Json
+  integrationSecret        String // shared secret for Judge.me / Flow / cron calls into the app
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime      @updatedAt
 }
 
-model RedeemedCode {
-  id                String   @id @default(cuid())
-  shopifyCustomerId String
-  discountCode      String
-  pointsCost        Int
-  discountValue     String   // e.g. "₹50"
-  used              Boolean  @default(false)
-  expiresAt         DateTime?
-  createdAt         DateTime @default(now())
+model Tier {
+  id         String   @id @default(cuid())
+  shop       String
+  name       String
+  threshold  Int // lifetime points needed
+  multiplier Float    @default(1)
+  perks      String[] @default([])
+  color      String   @default("#111111")
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  members    Member[]
+  rewards    Reward[]
 
-  @@index([shopifyCustomerId])
+  @@unique([shop, name])
+  @@index([shop, threshold])
 }
-model LoyaltySettings {
-  id               String @id
-  pointsPerRupee   Float  @default(0.01)
-  silverThreshold  Int    @default(500)
-  goldThreshold    Int    @default(1500)
-  redeem500Value   Int    @default(50)
-  redeem1000Value  Int    @default(120)
-  redeem2000Value  Int    @default(300)
+
+enum RewardType {
+  FIXED_AMOUNT
+  PERCENTAGE
+  FREE_SHIPPING
+}
+
+model Reward {
+  id          String        @id @default(cuid())
+  shop        String
+  title       String
+  type        RewardType    @default(FIXED_AMOUNT)
+  pointsCost  Int
+  value       Float // ₹ amount or percentage; ignored for free shipping
+  minSubtotal Float? // null = derive from maxRedeemPercent
+  minTierId   String?
+  minTier     Tier?         @relation(fields: [minTierId], references: [id], onDelete: SetNull)
+  active      Boolean       @default(true)
+  sortOrder   Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  redemptions Redemption[]
+
+  @@index([shop, active])
+}
+
+model Member {
+  id              String    @id @default(cuid())
+  shop            String
+  customerId      String // numeric Shopify customer ID as string
+  email           String?
+  firstName       String?
+  lastName        String?
+  balance         Int       @default(0) // available points
+  pending         Int       @default(0) // earned, waiting for delivery + hold
+  lifetimeEarned  Int       @default(0) // available points ever credited; drives tier
+  lifetimeSpent   Int       @default(0) // points redeemed
+  tierId          String?
+  tier            Tier?     @relation(fields: [tierId], references: [id], onDelete: SetNull)
+  tierLocked      Boolean   @default(false) // staff override, engine leaves tier alone
+  tierPointsOffset Int      @default(0) // set on inactivity downgrade; tier uses lifetimeEarned - offset
+  tierAchievedAt  DateTime?
+  referralCode    String
+  referredById    String?
+  referredBy      Member?   @relation("Referrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referees        Member[]  @relation("Referrals")
+  birthMonth      Int?
+  birthDay        Int?
+  birthYear       Int?
+  signedInAt      DateTime? // first real sign-in; gates the signup bonus
+  instagramId     String? // Instagram-scoped ID, set once a follow is verified
+  instagramHandle String?
+  instagramCode   String? // one-time code the member DMs to the brand account
+  excluded        Boolean   @default(false)
+  ordersCount     Int       @default(0)
+  totalSpent      Float     @default(0)
+  lastOrderAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  ledger          LedgerEntry[]
+  redemptions     Redemption[]
+  orders          LoyaltyOrder[]
+  referralsMade   Referral[] @relation("Referrer")
+  referralFrom    Referral?  @relation("Referee")
+
+  @@unique([shop, customerId])
+  @@unique([shop, referralCode])
+  @@unique([shop, instagramId])
+  @@unique([shop, instagramCode])
+  @@index([shop, email])
+  @@index([shop, tierId])
+  @@index([shop, birthMonth, birthDay])
+}
+
+enum LedgerType {
+  PURCHASE
+  SIGNUP
+  BIRTHDAY
+  BIRTHDAY_SETUP
+  REVIEW
+  REFERRAL_REFERRER
+  REFERRAL_FRIEND
+  INSTAGRAM
+  NEWSLETTER
+  RETRO
+  ADJUSTMENT
+  REDEMPTION
+  REDEMPTION_RESTORED
+  REFUND_REVERSAL
+  EXPIRY
+}
+
+enum LedgerStatus {
+  PENDING
+  AVAILABLE
+  CANCELLED
+}
+
+/// Append-only point movements. Positive = credit, negative = debit.
+/// Credits keep `remaining` so redemptions and expiry consume oldest points first.
+model LedgerEntry {
+  id             String       @id @default(cuid())
+  shop           String
+  memberId       String
+  member         Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  points         Int
+  type           LedgerType
+  status         LedgerStatus @default(AVAILABLE)
+  remaining      Int          @default(0)
+  availableAt    DateTime?
+  expiresAt      DateTime?
+  orderId        String?
+  description    String
+  idempotencyKey String
+  createdBy      String       @default("system")
+  meta           Json?
+  createdAt      DateTime     @default(now())
+
+  @@unique([shop, idempotencyKey])
+  @@index([memberId, createdAt])
+  @@index([shop, status, availableAt])
+  @@index([shop, expiresAt])
+  @@index([shop, orderId])
+  @@index([shop, type, createdAt])
+}
+
+enum RedemptionStatus {
+  PENDING
+  ISSUED
+  USED
+  EXPIRED
+  CANCELLED
+  FAILED
+}
+
+enum RedemptionKind {
+  DISCOUNT_CODE
+  STORE_CREDIT
+}
+
+model Redemption {
+  id             String           @id @default(cuid())
+  shop           String
+  memberId       String
+  member         Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  rewardId       String?
+  reward         Reward?          @relation(fields: [rewardId], references: [id], onDelete: SetNull)
+  kind           RedemptionKind   @default(DISCOUNT_CODE)
+  points         Int
+  rewardType     RewardType       @default(FIXED_AMOUNT)
+  value          Float
+  label          String
+  code           String?
+  discountNodeId String?
+  minSubtotal    Float?
+  status         RedemptionStatus @default(PENDING)
+  expiresAt      DateTime?
+  usedOrderId    String?
+  usedAt         DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([shop, code])
+  @@index([memberId, status])
+  @@index([shop, status, expiresAt])
+}
+
+enum OrderLoyaltyStatus {
+  PENDING
+  CREDITED
+  CANCELLED
+}
+
+/// One row per Shopify order that earned points; used for release, refunds and analytics.
+model LoyaltyOrder {
+  id             String             @id @default(cuid())
+  shop           String
+  orderId        String
+  orderName      String?
+  memberId       String
+  member         Member             @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  eligibleAmount Float
+  multiplier     Float              @default(1)
+  points         Int
+  refundedAmount Float              @default(0)
+  pointsReversed Int                @default(0)
+  status         OrderLoyaltyStatus @default(PENDING)
+  paidAt         DateTime?
+  fulfilledAt    DateTime?
+  deliveredAt    DateTime?
+  releaseAt      DateTime?
+  usedCodes      String[]           @default([])
+  refundIds      String[]           @default([])
+  checkedAt      DateTime? // last time delivery status was polled from Shopify
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@unique([shop, orderId])
+  @@index([shop, status, releaseAt])
+  @@index([memberId])
+}
+
+enum ReferralStatus {
+  SIGNED_UP
+  REWARDED
+  REJECTED
+}
+
+model Referral {
+  id           String         @id @default(cuid())
+  shop         String
+  referrerId   String
+  referrer     Member         @relation("Referrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  refereeId    String         @unique
+  referee      Member         @relation("Referee", fields: [refereeId], references: [id], onDelete: Cascade)
+  status       ReferralStatus @default(SIGNED_UP)
+  rejectReason String?
+  orderId      String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([shop, referrerId])
+  @@index([shop, status])
+}
+
+/// Bookkeeping for long admin jobs (retro credit) and cron runs.
+model JobRun {
+  id         String    @id @default(cuid())
+  shop       String
+  kind       String
+  status     String    @default("RUNNING")
+  params     Json?
+  result     Json?
+  error      String?
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([shop, kind, startedAt])
 }

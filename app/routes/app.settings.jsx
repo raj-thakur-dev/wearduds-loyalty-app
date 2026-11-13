@@ -1,216 +1,247 @@
-import { useState } from "react";
-import { useLoaderData, useFetcher } from "react-router";
-import {
-  Page,
-  Layout,
-  Card,
-  BlockStack,
-  Text,
-  TextField,
-  Button,
-  Banner,
-  InlineGrid,
-  Box,
-} from "@shopify/polaris";
+import crypto from "node:crypto";
+import { Form, useActionData, useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-
-// Single-row settings table keyed by a fixed id, so there's always exactly one config record
-const SETTINGS_ID = "loyalty_settings";
-
-async function getOrCreateSettings() {
-  let settings = await prisma.loyaltySettings.findUnique({
-    where: { id: SETTINGS_ID },
-  });
-
-  if (!settings) {
-    settings = await prisma.loyaltySettings.create({
-      data: {
-        id: SETTINGS_ID,
-        pointsPerRupee: 0.01, // 1 point per ₹100
-        silverThreshold: 500,
-        goldThreshold: 1500,
-        redeem500Value: 50,
-        redeem1000Value: 120,
-        redeem2000Value: 300,
-      },
-    });
-  }
-
-  return settings;
-}
+import { getSettings, updateSettings, validateSettingsInput } from "../loyalty/settings.server";
+import { publishConfig } from "../loyalty/config.server";
+import { runRetroCredit, validateRetroInput } from "../loyalty/retro.server";
+import { FieldErrors, formatDate, formatPoints, useActionToast, useBusy } from "../admin/ui";
 
 export async function loader({ request }) {
-  await authenticate.admin(request);
-  const settings = await getOrCreateSettings();
-  return Response.json({ settings });
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
+  const s = await getSettings(shop);
+  const appUrl = (process.env.SHOPIFY_APP_URL || "").replace(/\/$/, "");
+  const [retroRuns, lastCron] = await Promise.all([
+    prisma.jobRun.findMany({ where: { shop, kind: { in: ["retro", "retro-preview"] } }, orderBy: { startedAt: "desc" }, take: 5 }),
+    prisma.jobRun.findFirst({ where: { shop, kind: { startsWith: "birthdays:" } }, orderBy: { startedAt: "desc" } }),
+  ]);
+  return {
+    shop,
+    programName: s.programName,
+    widget: s.widget,
+    integrations: {
+      judgeme: `${appUrl}/integrations/judgeme?shop=${shop}&key=${s.integrationSecret}`,
+      flowUrl: `${appUrl}/integrations/flow`,
+      secret: s.integrationSecret,
+      instagramWebhook: `${appUrl}/integrations/instagram`,
+      instagramReady: !!(process.env.META_APP_SECRET && process.env.IG_ACCESS_TOKEN && process.env.INSTAGRAM_SHOP),
+      cronUrl: `${appUrl}/internal/cron`,
+      cronReady: !!process.env.CRON_SECRET,
+      lastCron: lastCron?.startedAt || null,
+    },
+    retroRuns: retroRuns.map((r) => ({ id: r.id, kind: r.kind, status: r.status, params: r.params, result: r.result, at: r.startedAt })),
+  };
 }
 
 export async function action({ request }) {
-  await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
+  const shop = session.shop;
+  const form = await request.formData();
+  const intent = form.get("intent");
 
-  const formData = await request.formData();
-
-  const pointsPerRupee = parseFloat(formData.get("pointsPerRupee"));
-  const silverThreshold = parseInt(formData.get("silverThreshold"), 10);
-  const goldThreshold = parseInt(formData.get("goldThreshold"), 10);
-  const redeem500Value = parseInt(formData.get("redeem500Value"), 10);
-  const redeem1000Value = parseInt(formData.get("redeem1000Value"), 10);
-  const redeem2000Value = parseInt(formData.get("redeem2000Value"), 10);
-
-  if (
-    isNaN(pointsPerRupee) ||
-    isNaN(silverThreshold) ||
-    isNaN(goldThreshold) ||
-    isNaN(redeem500Value) ||
-    isNaN(redeem1000Value) ||
-    isNaN(redeem2000Value)
-  ) {
-    return Response.json({ error: "All fields must be valid numbers." }, { status: 400 });
+  if (intent === "program") {
+    const res = validateSettingsInput({ programName: form.get("programName") });
+    if (res.errors) return { errors: res.errors };
+    const current = await getSettings(shop);
+    const widget = {
+      ...current.widget,
+      accent: /^#[0-9a-fA-F]{6}$/.test(form.get("accent")) ? form.get("accent") : current.widget.accent,
+      launcherLabel: String(form.get("launcherLabel") || "Rewards").slice(0, 20),
+      launcherPosition: form.get("launcherPosition") === "left" ? "left" : "right",
+      showLauncher: form.get("showLauncher") === "on",
+      guestHeadline: String(form.get("guestHeadline") || "").slice(0, 80),
+      guestBody: String(form.get("guestBody") || "").slice(0, 200),
+      clubPageUrl: String(form.get("clubPageUrl") || "/pages/wearduds-club").slice(0, 120),
+    };
+    await updateSettings(shop, { ...res.data, widget });
+    await publishConfig(shop, admin).catch(() => null);
+    return { toast: "Settings saved" };
   }
 
-  if (goldThreshold <= silverThreshold) {
-    return Response.json(
-      { error: "Gold threshold must be higher than Silver threshold." },
-      { status: 400 }
-    );
+  if (intent === "rotate-secret") {
+    if (form.get("confirm") !== "ROTATE") return { error: "Type ROTATE to confirm." };
+    await updateSettings(shop, { integrationSecret: crypto.randomBytes(24).toString("hex") });
+    return { toast: "New key created. Update Judge.me and Flow." };
   }
 
-  const settings = await prisma.loyaltySettings.upsert({
-    where: { id: SETTINGS_ID },
-    update: {
-      pointsPerRupee,
-      silverThreshold,
-      goldThreshold,
-      redeem500Value,
-      redeem1000Value,
-      redeem2000Value,
-    },
-    create: {
-      id: SETTINGS_ID,
-      pointsPerRupee,
-      silverThreshold,
-      goldThreshold,
-      redeem500Value,
-      redeem1000Value,
-      redeem2000Value,
-    },
-  });
-
-  return Response.json({ success: true, settings });
+  if (intent === "retro-preview" || intent === "retro-run") {
+    const res = validateRetroInput({ percent: form.get("percent"), cap: form.get("cap") });
+    if (res.errors) return { errors: res.errors };
+    if (intent === "retro-run" && form.get("confirm") !== "AWARD") return { error: "Type AWARD to confirm." };
+    try {
+      const out = await runRetroCredit(shop, admin, { ...res.data, dryRun: intent === "retro-preview" });
+      return {
+        toast:
+          intent === "retro-preview"
+            ? `Preview: ${formatPoints(out.eligible)} customers would get ${formatPoints(out.points)} points`
+            : `Awarded ${formatPoints(out.points)} points to ${formatPoints(out.eligible)} customers`,
+        retro: out,
+      };
+    } catch (err) {
+      return { error: `Stopped: ${err.message}. It's safe to run again; nobody is paid twice.` };
+    }
+  }
+  return { error: "Unknown action" };
 }
 
 export default function Settings() {
-  const { settings } = useLoaderData();
-  const fetcher = useFetcher();
-
-  const [form, setForm] = useState({
-    pointsPerRupee: String(settings.pointsPerRupee),
-    silverThreshold: String(settings.silverThreshold),
-    goldThreshold: String(settings.goldThreshold),
-    redeem500Value: String(settings.redeem500Value),
-    redeem1000Value: String(settings.redeem1000Value),
-    redeem2000Value: String(settings.redeem2000Value),
-  });
-
-  const isSaving = fetcher.state !== "idle";
-  const result = fetcher.data;
-
-  function update(field, value) {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  }
-
-  function handleSave() {
-    const fd = new FormData();
-    Object.entries(form).forEach(([key, value]) => fd.append(key, value));
-    fetcher.submit(fd, { method: "post" });
-  }
+  const data = useLoaderData();
+  const result = useActionData();
+  useActionToast(result);
+  const busy = useBusy();
+  const w = data.widget;
+  const i = data.integrations;
 
   return (
-    <Page title="Loyalty Settings" backAction={{ url: "/app" }}>
-      <Layout>
-        <Layout.Section>
-          <Card>
-            <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">Point Rate</Text>
-              <TextField
-                label="Points earned per ₹1 spent"
-                type="number"
-                step={0.001}
-                value={form.pointsPerRupee}
-                onChange={(v) => update("pointsPerRupee", v)}
-                autoComplete="off"
-                helpText="e.g. 0.01 means 1 point per ₹100 spent"
-              />
-            </BlockStack>
-          </Card>
-        </Layout.Section>
+    <s-page heading="Settings">
+      <FieldErrors errors={result?.errors} />
 
-        <Layout.Section>
-          <Card>
-            <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">Tier Thresholds</Text>
-              <InlineGrid columns={{ xs: 1, sm: 2 }} gap="400">
-                <TextField
-                  label="Silver tier starts at (points)"
-                  type="number"
-                  value={form.silverThreshold}
-                  onChange={(v) => update("silverThreshold", v)}
-                  autoComplete="off"
-                />
-                <TextField
-                  label="Gold tier starts at (points)"
-                  type="number"
-                  value={form.goldThreshold}
-                  onChange={(v) => update("goldThreshold", v)}
-                  autoComplete="off"
-                />
-              </InlineGrid>
-            </BlockStack>
-          </Card>
-        </Layout.Section>
+      <s-section heading="Program and widget">
+        <Form method="post">
+          <input type="hidden" name="intent" value="program" />
+          <s-stack gap="base">
+            <s-grid gridTemplateColumns="repeat(auto-fit, minmax(220px, 1fr))" gap="base">
+              <s-text-field name="programName" label="Program name" value={data.programName} />
+              <s-color-field name="accent" label="Accent colour" value={w.accent} />
+              <s-text-field name="launcherLabel" label="Launcher button text" value={w.launcherLabel} />
+              <s-select name="launcherPosition" label="Launcher position" value={w.launcherPosition}>
+                <s-option value="right">Bottom right</s-option>
+                <s-option value="left">Bottom left</s-option>
+              </s-select>
+              <s-text-field name="clubPageUrl" label="Club page URL" value={w.clubPageUrl} />
+            </s-grid>
+            <s-switch name="showLauncher" label="Show the floating Rewards button" checked={w.showLauncher || undefined} details="Turn off if the theme links to the panel from its own menu or bottom nav." />
+            <s-text-field name="guestHeadline" label="Headline for visitors who aren't signed in" value={w.guestHeadline} />
+            <s-text-area name="guestBody" label="Text for visitors who aren't signed in" value={w.guestBody} rows={2} />
+            <s-stack direction="inline" justifyContent="end">
+              <s-button type="submit" variant="primary" loading={busy || undefined}>
+                Save
+              </s-button>
+            </s-stack>
+          </s-stack>
+        </Form>
+      </s-section>
 
-        <Layout.Section>
-          <Card>
-            <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">Redemption Values</Text>
-              <InlineGrid columns={{ xs: 1, sm: 3 }} gap="400">
-                <TextField
-                  label="500 points = ₹"
-                  type="number"
-                  value={form.redeem500Value}
-                  onChange={(v) => update("redeem500Value", v)}
-                  autoComplete="off"
-                />
-                <TextField
-                  label="1000 points = ₹"
-                  type="number"
-                  value={form.redeem1000Value}
-                  onChange={(v) => update("redeem1000Value", v)}
-                  autoComplete="off"
-                />
-                <TextField
-                  label="2000 points = ₹"
-                  type="number"
-                  value={form.redeem2000Value}
-                  onChange={(v) => update("redeem2000Value", v)}
-                  autoComplete="off"
-                />
-              </InlineGrid>
-            </BlockStack>
-          </Card>
-        </Layout.Section>
+      <s-section heading="Integrations" id="integrations">
+        <s-stack gap="large">
+          <IntegrationBlock title="Judge.me reviews" ready>
+            In Judge.me go to Settings &gt; Integrations &gt; Webhooks, add this URL for <s-text type="strong">review created</s-text> and{" "}
+            <s-text type="strong">review updated</s-text>:
+            <CopyValue value={i.judgeme} />
+          </IntegrationBlock>
+          <IntegrationBlock title="Shopify Flow" ready>
+            Use the four <s-text type="strong">Club</s-text> triggers (points earned, tier changed, reward redeemed, points expiring) to send email or
+            WhatsApp. To give points from Flow, add a <s-text type="strong">Send HTTP request</s-text> action to <CopyValue value={i.flowUrl} /> with
+            header <s-text type="strong">X-Club-Key</s-text>: <CopyValue value={i.secret} />
+          </IntegrationBlock>
+          <IntegrationBlock title="Instagram follow check" ready={i.instagramReady}>
+            Set META_APP_SECRET, META_VERIFY_TOKEN, IG_ACCESS_TOKEN and INSTAGRAM_SHOP on the server, then subscribe the Meta app's Instagram
+            messages webhook to <CopyValue value={i.instagramWebhook} />
+          </IntegrationBlock>
+          <IntegrationBlock title="Scheduled jobs" ready={i.cronReady && !!i.lastCron}>
+            Every hour, POST to <CopyValue value={i.cronUrl} /> with header <s-text type="strong">Authorization: Bearer CRON_SECRET</s-text>. Last daily
+            run: {i.lastCron ? formatDate(i.lastCron, true) : "never"}.
+          </IntegrationBlock>
+          <Form method="post">
+            <input type="hidden" name="intent" value="rotate-secret" />
+            <s-stack direction="inline" gap="base" alignItems="end">
+              <s-text-field name="confirm" label="Rotate the integration key (type ROTATE)" autocomplete="off" />
+              <s-button type="submit" tone="critical">
+                Rotate key
+              </s-button>
+            </s-stack>
+          </Form>
+        </s-stack>
+      </s-section>
 
-        <Layout.Section>
-          {result?.error && <Banner tone="critical">{result.error}</Banner>}
-          {result?.success && <Banner tone="success">Settings saved.</Banner>}
-          <Box paddingBlockStart="200">
-            <Button variant="primary" loading={isSaving} onClick={handleSave}>
-              Save Settings
-            </Button>
-          </Box>
-        </Layout.Section>
-      </Layout>
-    </Page>
+      <s-section heading="Welcome-back points for existing customers">
+        <Form method="post">
+          <s-stack gap="base">
+            <s-paragraph>
+              Give customers who shopped before launch a share of their lifetime spend as points, with a cap. Preview first. Each customer is only
+              ever paid once, so a run that stops can be restarted.
+            </s-paragraph>
+            <s-grid gridTemplateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap="base">
+              <s-number-field name="percent" label="% of lifetime spend" value="50" min="1" max="100" suffix="%" />
+              <s-number-field name="cap" label="Cap per customer (points)" value="2500" min="1" />
+              <s-select name="intent" label="Mode" value="retro-preview">
+                <s-option value="retro-preview">Preview only</s-option>
+                <s-option value="retro-run">Award points for real</s-option>
+              </s-select>
+              <s-text-field name="confirm" label="To award, type AWARD" autocomplete="off" />
+            </s-grid>
+            {result?.retro ? (
+              <s-banner tone="info">
+                {formatPoints(result.retro.customers)} customers checked · {formatPoints(result.retro.eligible)} eligible ·{" "}
+                {formatPoints(result.retro.points)} points
+              </s-banner>
+            ) : null}
+            <s-stack direction="inline" gap="base" justifyContent="end">
+              <s-button type="submit" variant="primary" loading={busy || undefined}>
+                Run
+              </s-button>
+            </s-stack>
+            {data.retroRuns.length ? (
+              <s-table>
+                <s-table-header-row>
+                  <s-table-header>Run</s-table-header>
+                  <s-table-header>Settings</s-table-header>
+                  <s-table-header>Result</s-table-header>
+                  <s-table-header>When</s-table-header>
+                </s-table-header-row>
+                <s-table-body>
+                  {data.retroRuns.map((r) => (
+                    <s-table-row key={r.id}>
+                      <s-table-cell>
+                        <s-badge tone={r.status === "DONE" ? "success" : r.status === "FAILED" ? "critical" : "info"}>
+                          {r.kind === "retro" ? "Award" : "Preview"} · {r.status.toLowerCase()}
+                        </s-badge>
+                      </s-table-cell>
+                      <s-table-cell>
+                        {r.params?.percent}% · cap {formatPoints(r.params?.cap)}
+                      </s-table-cell>
+                      <s-table-cell>
+                        {formatPoints(r.result?.eligible || 0)} customers · {formatPoints(r.result?.points || 0)} pts
+                      </s-table-cell>
+                      <s-table-cell>{formatDate(r.at, true)}</s-table-cell>
+                    </s-table-row>
+                  ))}
+                </s-table-body>
+              </s-table>
+            ) : null}
+          </s-stack>
+        </Form>
+      </s-section>
+
+      <s-section slot="aside" heading="Testing before launch">
+        <s-paragraph>
+          While the club isn't live, only customers tagged <s-text type="strong">club-tester</s-text> earn points and see their balance. Tag yourself
+          in Shopify, place a test order, and check the Members page.
+        </s-paragraph>
+      </s-section>
+    </s-page>
+  );
+}
+
+function IntegrationBlock({ title, ready, children }) {
+  return (
+    <s-stack gap="small">
+      <s-stack direction="inline" gap="small" alignItems="center">
+        <s-heading>{title}</s-heading>
+        <s-badge tone={ready ? "success" : "warning"}>{ready ? "Ready" : "Needs setup"}</s-badge>
+      </s-stack>
+      <s-paragraph>{children}</s-paragraph>
+    </s-stack>
+  );
+}
+
+function CopyValue({ value }) {
+  return (
+    <code
+      style={{ display: "block", wordBreak: "break-all", background: "#f6f6f7", padding: "6px 8px", borderRadius: 6, margin: "4px 0", fontSize: 12 }}
+    >
+      {value}
+    </code>
   );
 }
