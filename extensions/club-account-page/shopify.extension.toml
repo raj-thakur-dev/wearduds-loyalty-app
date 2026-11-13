@@ -1,0 +1,14 @@
+api_version = "2026-07"
+
+[[extensions]]
+name = "Rewards"
+handle = "club-account-page"
+type = "ui_extension"
+
+  [[extensions.targeting]]
+  module = "./src/RewardsPage.jsx"
+  target = "customer-account.page.render"
+
+  [extensions.capabilities]
+  network_access = true
+  api_access = true

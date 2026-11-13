@@ -1,0 +1,30 @@
+{%- comment -%} Full Club page. Add to a page template (e.g. /pages/wearduds-club). {%- endcomment -%}
+{%- render 'club-config', accent: block.settings.accent -%}
+<div
+  class="wdc wdc-page"
+  data-wdc-page
+  data-headline="{{ block.settings.headline | escape }}"
+  data-lede="{{ block.settings.lede | escape }}"
+  style="--wdc-accent: {{ block.settings.accent }};"
+>
+  <div class="wdc-page__hero" aria-busy="true">
+    <div>
+      <div class="wdc-skel" style="height: 120px; max-width: 560px;"></div>
+      <div class="wdc-skel" style="height: 64px; max-width: 420px; margin-top: 16px;"></div>
+    </div>
+    <div class="wdc-skel" style="height: 220px;"></div>
+  </div>
+  <noscript><p>Turn on JavaScript to see your points.</p></noscript>
+</div>
+
+{% schema %}
+{
+  "name": "Club page",
+  "target": "section",
+  "settings": [
+    { "type": "text", "id": "headline", "label": "Headline", "default": "Wear more. Pay less." },
+    { "type": "textarea", "id": "lede", "label": "Intro", "info": "Leave blank to explain the earn rate automatically." },
+    { "type": "color", "id": "accent", "label": "Accent colour", "default": "#FF6B1A" }
+  ]
+}
+{% endschema %}

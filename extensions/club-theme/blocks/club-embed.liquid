@@ -1,0 +1,34 @@
+{%- comment -%}
+  App embed: floating Rewards button + slide-in panel on every page.
+  Themes can open the panel from their own UI with any link to "#club"
+  or an element with data-wdc-open (e.g. a bottom-nav item), or window.WeardudsClub.open().
+{%- endcomment -%}
+{%- if block.settings.bottom_offset > 0 -%}
+  <style>:root { --wdc-bottom-offset: {{ block.settings.bottom_offset }}px; }</style>
+{%- endif -%}
+{%- render 'club-config',
+  accent: block.settings.accent,
+  show_launcher: block.settings.show_launcher,
+  launcher_label: block.settings.launcher_label,
+  launcher_position: block.settings.launcher_position
+-%}
+
+{% schema %}
+{
+  "name": "Wearduds Club",
+  "target": "body",
+  "settings": [
+    { "type": "color", "id": "accent", "label": "Accent colour", "default": "#FF6B1A" },
+    { "type": "checkbox", "id": "show_launcher", "label": "Show floating Rewards button", "default": true },
+    { "type": "text", "id": "launcher_label", "label": "Button text", "default": "Rewards" },
+    {
+      "type": "select", "id": "launcher_position", "label": "Button position", "default": "right",
+      "options": [ { "value": "right", "label": "Bottom right" }, { "value": "left", "label": "Bottom left" } ]
+    },
+    {
+      "type": "range", "id": "bottom_offset", "label": "Lift above mobile bottom nav", "min": 0, "max": 120, "step": 4, "unit": "px", "default": 0,
+      "info": "Set this to your theme's bottom navigation height so the button never covers it."
+    }
+  ]
+}
+{% endschema %}

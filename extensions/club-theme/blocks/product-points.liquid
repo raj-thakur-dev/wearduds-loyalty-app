@@ -1,0 +1,41 @@
+{%- comment -%} "Earn X points" on the product page, rendered in Liquid (no network call). {%- endcomment -%}
+{%- liquid
+  assign club = app.metafields.club.config.value
+  assign tier_name = customer.metafields.app.tier.value
+  assign multiplier = 1
+  for t in club.tiers
+    if t.name == tier_name
+      assign multiplier = t.multiplier
+    endif
+  endfor
+  assign variant = product.selected_or_first_available_variant
+  assign rate = club.pointsPerCurrency | default: 1
+  assign points = variant.price | divided_by: 100.0 | times: rate | times: multiplier | floor
+  assign worth = points | times: club.pointValue | default: 0 | round
+  assign show = club.live
+  if customer.metafields.app.points_lifetime != blank
+    assign show = true
+  endif
+-%}
+{%- if show and points > 0 -%}
+  <div class="wdc" style="--wdc-accent: {{ block.settings.accent }};">
+    <p class="wdc-product-points">
+      <span class="wdc-dot" aria-hidden="true"></span>
+      <span>
+        Earn <strong>{{ points | json }} points</strong> with this, worth ₹{{ worth }} off your next order.
+        {%- unless customer %} <a class="wdc-link" href="{{ routes.account_login_url }}">Join the club</a>{% endunless -%}
+      </span>
+    </p>
+  </div>
+  {{ 'club.css' | asset_url | stylesheet_tag }}
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Points for this product",
+  "target": "section",
+  "settings": [
+    { "type": "color", "id": "accent", "label": "Accent colour", "default": "#FF6B1A" }
+  ]
+}
+{% endschema %}

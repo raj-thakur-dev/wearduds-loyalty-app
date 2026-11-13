@@ -48,6 +48,7 @@ function earnList(settings, member) {
       title: "Refer a friend",
       points: r.referral.referrerPoints,
       detail: `They get ${r.referral.friendPoints} points when they join`,
+      friendPoints: r.referral.friendPoints,
       status: "repeat",
     });
   }
@@ -150,7 +151,8 @@ export async function buildState(shop, customerId, { cartSubtotal = null, admin 
       balance: member.balance,
       pending: member.pending,
       worth: pointsToMoney(member.balance, settings.pointValue),
-      worthLabel: formatMoney(pointsToMoney(member.balance, settings.pointValue), settings.currencyCode),
+      // Whole rupees: redemption happens in steps, so paise would only be noise.
+      worthLabel: formatMoney(Math.floor(pointsToMoney(member.balance, settings.pointValue)), settings.currencyCode),
       lifetimeEarned: member.lifetimeEarned,
       excluded: member.excluded,
       memberSince: member.createdAt,
