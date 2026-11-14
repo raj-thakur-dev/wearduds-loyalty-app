@@ -7,6 +7,7 @@ import { expireCodes } from "./redeem.server";
 import { awardBirthdays } from "./actions.server";
 import { addDays, tierForPoints } from "./math";
 import { runEffects } from "./effects.server";
+import { publishConfig } from "./config.server";
 
 /** Runs a job at most once per UTC day per shop. */
 async function once(shop, kind, fn, now = new Date()) {
@@ -142,6 +143,10 @@ export async function runShopJobs(shop, now = new Date()) {
   await step("birthdays", () => once(shop, "birthdays", () => awardBirthdays(shop, now), now));
   await step("expiryWarnings", () => once(shop, "expiry-warn", () => warnExpiringPoints(shop, now), now));
   await step("tiers", () => once(shop, "tiers", () => refreshTiers(shop, now), now));
+  // Theme Liquid (product "earn X coins") reads a copy of the settings in a shop
+  // metafield. Refresh it daily so changes made outside the admin (migrations,
+  // direct DB edits) reach the storefront without someone pressing Save.
+  if (admin) await step("config", () => once(shop, "config", () => publishConfig(shop, admin), now));
   return results;
 }
 
