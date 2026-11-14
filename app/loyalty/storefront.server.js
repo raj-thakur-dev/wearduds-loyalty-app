@@ -102,6 +102,8 @@ export async function buildState(shop, customerId, { cartSubtotal = null, admin 
     storeCredit: settings.storeCreditEnabled,
     tiers: tiers.map(publicTier),
     widget: settings.widget,
+    // Full-page account extensions have no shopify.shop, so the referral link needs this.
+    storefrontUrl: `https://${shop}`,
   };
 
   let member = null;
