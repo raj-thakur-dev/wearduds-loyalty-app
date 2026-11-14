@@ -12,7 +12,7 @@ Plan and client decisions: [`docs/PLAN.md`](docs/PLAN.md).
 | --- | --- |
 | Points engine (ledger, tiers, expiry, refunds) | `app/loyalty/*.server.js` |
 | Admin (Overview, Members, Ways to earn, Rewards & tiers, Referrals, Settings) | `app/routes/app.*.jsx` |
-| Storefront API (via app proxy `/apps/club/*`) | `app/routes/proxy.*.jsx` |
+| Storefront API (via app proxy `/apps/loyalty/*`) | `app/routes/proxy.*.jsx` |
 | Customer account + thank-you API (session tokens) | `app/routes/api.*.jsx` |
 | Webhooks | `app/routes/webhooks.*.jsx` |
 | Judge.me, Flow, Instagram, cron | `app/routes/integrations.*.jsx`, `internal.cron.jsx` |

@@ -16,10 +16,11 @@ redirect_urls = [
   "https://wearduds-club.onrender.com/api/auth/callback",
 ]
 
-# Storefront calls go to /apps/club/* and are forwarded, signed, to /proxy/*.
+# Storefront calls go to /apps/loyalty/* and are forwarded, signed, to /proxy/*.
+# Existing installs keep the path they were installed with; the theme script falls back between /apps/loyalty and /apps/club.
 [app_proxy]
 url = "https://wearduds-club.onrender.com/proxy"
-subpath = "club"
+subpath = "loyalty"
 prefix = "apps"
 
 [webhooks]

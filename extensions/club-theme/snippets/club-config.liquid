@@ -2,7 +2,7 @@
 {%- assign club = app.metafields.club.config.value -%}
 <script>
   window.WDClubConfig = window.WDClubConfig || {
-    proxy: "/apps/club",
+    proxy: {{ club.proxyPrefix | default: "/apps/loyalty" | json }},
     signedIn: {% if customer %}true{% else %}false{% endif %},
     loginUrl: {{ routes.account_login_url | json }},
     registerUrl: {{ routes.account_register_url | default: routes.account_login_url | json }},

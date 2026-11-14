@@ -3,7 +3,7 @@ import { buildState } from "../loyalty/storefront.server";
 import { errorResponse, json, rateLimit } from "../loyalty/http.server";
 import { noteSignals, storefrontSignals } from "../loyalty/signals.server";
 
-// GET /apps/club/state?cart=1499.00
+// GET /apps/loyalty/state?cart=1499.00
 // Shopify signs every proxied request. The only customer identity we trust is
 // the signed `logged_in_customer_id`; anything the browser sends is ignored.
 export async function loader({ request }) {
