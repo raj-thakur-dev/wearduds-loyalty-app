@@ -12,6 +12,16 @@
     launcherLabel: {{ launcher_label | default: club.widget.launcherLabel | default: 'Rewards' | json }},
     launcherPosition: {{ launcher_position | default: club.widget.launcherPosition | default: 'right' | json }}
   };
+  {%- if from_embed %}
+  // The app embed owns the floating button. Another Club block may have set up the
+  // config first (with the button off), so the embed's own settings always win.
+  Object.assign(window.WDClubConfig, {
+    showLauncher: {{ show_launcher | json }},
+    launcherLabel: {{ launcher_label | default: club.widget.launcherLabel | default: 'Rewards' | json }},
+    launcherPosition: {{ launcher_position | default: 'right' | json }},
+    accent: {{ accent | default: club.widget.accent | default: '#FF6B1A' | json }}
+  });
+  {%- endif %}
 </script>
 {{ 'club.css' | asset_url | stylesheet_tag }}
 <script src="{{ 'club.js' | asset_url }}" defer></script>
