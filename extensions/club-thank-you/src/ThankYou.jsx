@@ -32,7 +32,7 @@ function ThankYou() {
     <s-banner heading={`This order earns ${pts(summary.points)} points`}>
       Sign in with the email you used at checkout to claim them
       {summary.signupPoints ? `, plus ${pts(summary.signupPoints)} welcome points` : ""}.
-      <s-button slot="secondary-actions" href={`${shopify.shop.storefrontUrl.replace(/\/$/, "")}/account`}>
+      <s-button slot="secondary-actions" href={`${(shopify.shop?.storefrontUrl || "").replace(/\/$/, "")}/account`}>
         Claim points
       </s-button>
     </s-banner>

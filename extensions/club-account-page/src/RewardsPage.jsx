@@ -115,7 +115,7 @@ function RewardsPage() {
             </s-stack>
           ))}
           {!member.birthdaySet ? <BirthdayForm onSaved={load} /> : null}
-          <ReferralLink code={member.referral.code} />
+          <ReferralLink code={member.referral.code} storefrontUrl={program.storefrontUrl} />
         </s-stack>
       </s-section>
 
@@ -261,8 +261,11 @@ function BirthdayForm({ onSaved }) {
   );
 }
 
-function ReferralLink({ code }) {
-  const url = `${shopify.shop.storefrontUrl.replace(/\/$/, "")}/?ref=${encodeURIComponent(code)}`;
+function ReferralLink({ code, storefrontUrl }) {
+  // shopify.shop only exists on order status targets, not on full pages.
+  const base = storefrontUrl || shopify.shop?.storefrontUrl;
+  if (!base || !code) return null;
+  const url = `${base.replace(/\/$/, "")}/?ref=${encodeURIComponent(code)}`;
   return (
     <s-stack gap="small">
       <s-text type="strong">Your referral link</s-text>
