@@ -60,7 +60,7 @@ Shopify failures, expiry, birthdays, reviews, referrals and tier downgrades.
 ## Deploy (Render)
 
 Dev setup: Render free web service `wearduds-club` (Docker, Singapore) at
-`https://wearduds-club.onrender.com`, plus free Postgres `wearduds-club-db`.
+`https://wearduds-club.onrender.com`, with Postgres on Supabase (session pooler).
 
 1. Set `DATABASE_URL` to the Postgres connection string. SQLite is gone: it was wiped on every deploy.
    Add `?schema=wearduds` to keep the app in its own schema when the database holds other tables
