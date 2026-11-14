@@ -68,6 +68,7 @@ model ProgramSettings {
   earnRules                Json
   widget                   Json
   integrationSecret        String // shared secret for Judge.me / Flow / cron calls into the app
+  signals                  Json          @default("{}") // last time each surface was seen live (embed, page, account, judgeme, flow)
   createdAt                DateTime      @default(now())
   updatedAt                DateTime      @updatedAt
 }

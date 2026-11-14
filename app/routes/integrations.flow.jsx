@@ -2,6 +2,7 @@ import { awardCustomEvent, awardReview } from "../loyalty/actions.server";
 import { verifyIntegration } from "../loyalty/integrations.server";
 import { errorResponse, json, readBody } from "../loyalty/http.server";
 import { LoyaltyError } from "../loyalty/ledger.server";
+import { noteSignals } from "../loyalty/signals.server";
 
 // Shopify Flow "Send HTTP request" (or any trusted system):
 //   POST https://<app>/integrations/flow   header: X-Club-Key: <integration secret>
@@ -11,6 +12,7 @@ export async function action({ request }) {
   try {
     const body = await readBody(request);
     const shop = await verifyIntegration(body.shop, request.headers.get("x-club-key"));
+    noteSignals(shop, ["flow"]);
     if (body.type === "review") {
       const result = await awardReview(shop, {
         customerId: body.customer_id,

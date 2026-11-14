@@ -12,7 +12,7 @@ Plan and client decisions: [`docs/PLAN.md`](docs/PLAN.md).
 | --- | --- |
 | Points engine (ledger, tiers, expiry, refunds) | `app/loyalty/*.server.js` |
 | Admin (Overview, Members, Ways to earn, Rewards & tiers, Referrals, Settings) | `app/routes/app.*.jsx` |
-| Storefront API (via app proxy `/apps/club/*`) | `app/routes/proxy.*.jsx` |
+| Storefront API (via app proxy `/apps/loyalty/*`) | `app/routes/proxy.*.jsx` |
 | Customer account + thank-you API (session tokens) | `app/routes/api.*.jsx` |
 | Webhooks | `app/routes/webhooks.*.jsx` |
 | Judge.me, Flow, Instagram, cron | `app/routes/integrations.*.jsx`, `internal.cron.jsx` |
@@ -57,15 +57,23 @@ TEST_DATABASE_URL=postgresql://... pnpm vitest run
 duplicate webhooks, refunds, cancellations, customer-locked codes, concurrent redemptions,
 Shopify failures, expiry, birthdays, reviews, referrals and tier downgrades.
 
-## Deploy (Railway)
+## Deploy (Render)
 
-1. Add a **PostgreSQL** service and set `DATABASE_URL` on the app service. SQLite is gone:
-   it was wiped on every deploy.
+Dev setup: Render free web service `wearduds-club` (Docker, Singapore) at
+`https://wearduds-club.onrender.com`, with Postgres on Supabase (session pooler).
+
+1. Set `DATABASE_URL` to the Postgres connection string. SQLite is gone: it was wiped on every deploy.
+   Add `?schema=wearduds` to keep the app in its own schema when the database holds other tables
+   (the dev Supabase project does). Both the migration and the app read that parameter.
 2. Set env vars from `.env.example` (`SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_APP_URL`, `SCOPES`, `CRON_SECRET`).
 3. Deploy. The Docker start command runs `prisma migrate deploy` before starting.
-4. Add a **cron service** from the same repo: command `node scripts/cron.mjs`, schedule `5 * * * *`,
-   with `SHOPIFY_APP_URL` and `CRON_SECRET`.
+4. Hourly cron: an external pinger (cron-job.org) sends `POST /internal/cron` with header
+   `Authorization: Bearer <CRON_SECRET>` at minute 5. On a paid host, `node scripts/cron.mjs` works too.
 5. `pnpm shopify app deploy` to push scopes, webhooks, metafield definitions and extensions.
+
+Free-tier limits: the service sleeps after 15 minutes idle (first request takes about a minute, and
+Shopify may retry webhooks), and free Postgres expires after 30 days. Move the DB to Neon or a paid
+plan before then, and use an always-on plan for the live store.
 6. In the Partner Dashboard > API access, request **protected customer data** access
    (name, email) because the app reads orders and customers.
 

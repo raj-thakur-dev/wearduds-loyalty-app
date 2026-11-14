@@ -1,4 +1,5 @@
 import { checkoutContext } from "../loyalty/extension-auth.server";
+import { noteSignals } from "../loyalty/signals.server";
 import { errorResponse, json } from "../loyalty/http.server";
 import { getSettings, getTiers } from "../loyalty/settings.server";
 import { findMember } from "../loyalty/members.server";
@@ -12,6 +13,7 @@ export async function loader({ request }) {
     cors = ctx.cors;
     const url = new URL(request.url);
     const subtotal = Math.max(0, Number(url.searchParams.get("subtotal") || 0));
+    noteSignals(ctx.shop, ["thankyou"]);
     const [settings, tiers] = await Promise.all([getSettings(ctx.shop), getTiers(ctx.shop)]);
     const member = ctx.customerId ? await findMember(ctx.shop, ctx.customerId) : null;
     const tier = member ? tiers.find((t) => t.id === member.tierId) : tiers[0];

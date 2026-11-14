@@ -10,7 +10,7 @@ description = "A Wearduds Club member spent points on a reward."
     type = "customer_reference"
 
     [[settings.fields]]
-    type = "number_integer"
+    type = "number_decimal"
     key = "Points spent"
 
     [[settings.fields]]
@@ -22,7 +22,7 @@ description = "A Wearduds Club member spent points on a reward."
     key = "Reward"
 
     [[settings.fields]]
-    type = "number_integer"
+    type = "number_decimal"
     key = "Points balance"
 
     [[settings.fields]]

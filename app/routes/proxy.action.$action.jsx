@@ -5,7 +5,7 @@ import { LoyaltyError } from "../loyalty/ledger.server";
 
 const ACTIONS = new Set(["redeem", "birthday", "referral", "instagram"]);
 
-// POST /apps/club/action/:action  (redeem | birthday | referral | instagram)
+// POST /apps/loyalty/action/:action  (redeem | birthday | referral | instagram)
 export async function action({ request, params }) {
   try {
     if (request.method !== "POST") throw new LoyaltyError("METHOD", "Use POST.", 405);

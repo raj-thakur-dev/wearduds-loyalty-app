@@ -1,12 +1,12 @@
 /* Wearduds Club storefront runtime. No dependencies.
-   Talks to the app through the Shopify app proxy (/apps/club/*), which signs
+   Talks to the app through the Shopify app proxy (/apps/loyalty/*), which signs
    every request; the server only trusts the signed customer id. */
 (function () {
   "use strict";
   if (window.WeardudsClub) return;
 
   var cfg = Object.assign(
-    { proxy: "/apps/club", signedIn: false, loginUrl: "/account/login", registerUrl: "/account/register", accent: "", clubPageUrl: "/pages/wearduds-club" },
+    { proxy: "/apps/loyalty", signedIn: false, loginUrl: "/account/login", registerUrl: "/account/register", accent: "", clubPageUrl: "/pages/wearduds-club" },
     window.WDClubConfig || {}
   );
   var REF_KEY = "wdc_ref";
@@ -68,17 +68,44 @@
   }
 
   /* ---------- API ---------- */
+  // The store can rename the app proxy (Settings > Apps > App proxy), and older
+  // installs keep their original path, so fall back through the known prefixes
+  // when Shopify answers 404 before the request ever reaches the app.
+  var proxyCandidates = [cfg.proxy, "/apps/loyalty", "/apps/club"].filter(function (p, i, a) { return p && a.indexOf(p) === i; });
   function request(path, opts) {
-    return fetch(cfg.proxy + path, Object.assign({ credentials: "same-origin", headers: { Accept: "application/json" } }, opts || {})).then(function (res) {
+    var init = Object.assign({ credentials: "same-origin", headers: { Accept: "application/json" } }, opts || {});
+    function attempt(i) {
+      return fetch(proxyCandidates[i] + path, init).then(function (res) {
+        if (res.status === 404 && i + 1 < proxyCandidates.length) {
+          return res.clone().text().then(function (t) {
+            if (!t) return attempt(i + 1);
+            return res;
+          });
+        }
+        if (i > 0) { cfg.proxy = proxyCandidates[i]; proxyCandidates = [cfg.proxy]; }
+        return res;
+      });
+    }
+    return attempt(0).then(function (res) {
       return res.json().catch(function () { return {}; }).then(function (body) {
         if (!res.ok) { var err = new Error(body.error || "Something went wrong. Try again."); err.code = body.code; throw err; }
         return body;
       });
     });
   }
+  var reported = false;
   function load(force) {
     if (loading && !force) return loading;
-    var q = lastCartSubtotal !== null ? "?cart=" + encodeURIComponent(lastCartSubtotal) : "";
+    var params = [];
+    if (lastCartSubtotal !== null) params.push("cart=" + encodeURIComponent(lastCartSubtotal));
+    if (!reported) {
+      var sf = [];
+      if (window.WDClubEmbed) sf.push("e");
+      if (document.querySelector("[data-wdc-page]")) sf.push("p");
+      if (sf.length) params.push("sf=" + sf.join(","));
+      reported = true;
+    }
+    var q = params.length ? "?" + params.join("&") : "";
     loading = request("/state" + q).then(function (s) {
       state = s; loading = null; claimReferral(); emit(); return s;
     }, function (err) { loading = null; throw err; });
