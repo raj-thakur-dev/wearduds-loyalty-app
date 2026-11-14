@@ -22,7 +22,7 @@ description = "A Wearduds Club member moved up (or down) a tier."
     key = "Direction"
 
     [[settings.fields]]
-    type = "number_integer"
+    type = "number_decimal"
     key = "Points balance"
 
     [[settings.fields]]
