@@ -111,13 +111,13 @@ export default function Members() {
               </s-select>
               <s-select name="status" label="Status" labelAccessibilityVisibility="exclusive" value={params.get("status") || ""}>
                 <s-option value="">Everyone</s-option>
-                <s-option value="has-points">Has points</s-option>
-                <s-option value="pending">Has pending points</s-option>
+                <s-option value="has-points">Has coins</s-option>
+                <s-option value="pending">Has pending coins</s-option>
                 <s-option value="never-signed-in">Never signed in</s-option>
                 <s-option value="excluded">Excluded</s-option>
               </s-select>
               <s-select name="sort" label="Sort" labelAccessibilityVisibility="exclusive" value={data.sort}>
-                <s-option value="balance">Most points</s-option>
+                <s-option value="balance">Most coins</s-option>
                 <s-option value="lifetime">Most earned ever</s-option>
                 <s-option value="lastOrder">Last order</s-option>
                 <s-option value="recent">Newest</s-option>
@@ -147,7 +147,7 @@ export default function Members() {
                 </s-table-header>
                 <s-table-header listSlot="primary">Member</s-table-header>
                 <s-table-header>Tier</s-table-header>
-                <s-table-header format="numeric">Points</s-table-header>
+                <s-table-header format="numeric">Coins</s-table-header>
                 <s-table-header format="numeric">Pending</s-table-header>
                 <s-table-header format="numeric">Earned ever</s-table-header>
                 <s-table-header format="numeric">Orders</s-table-header>
@@ -199,9 +199,9 @@ export default function Members() {
             </s-stack>
           </s-box>
 
-          <s-modal id="bulk-modal" heading="Adjust points for selected members">
+          <s-modal id="bulk-modal" heading="Adjust coins for selected members">
             <s-stack gap="base">
-              <s-number-field name="points" label="Points" details="Use a minus sign to take points away, e.g. -200" required />
+              <s-number-field name="points" label="Coins" details="Use a minus sign to take coins away, e.g. -200" required />
               <s-text-field name="reason" label="Reason" details="Shown in each member's history" required />
             </s-stack>
             <s-button slot="primary-action" type="submit" variant="primary" loading={busy || undefined} commandFor="bulk-modal" command="--hide">

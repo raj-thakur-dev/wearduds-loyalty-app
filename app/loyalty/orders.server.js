@@ -9,7 +9,7 @@ import {
   shrinkPending,
   withMemberLock,
 } from "./ledger.server";
-import { computeReleaseAt, eligibleAmountFromOrder, purchasePoints, refundReversal, roundMoney } from "./math";
+import { addDays, computeReleaseAt, eligibleAmountFromOrder, purchasePoints, refundReversal, roundMoney, streakDue } from "./math";
 import { fetchOrderShipping } from "./shopify-api.server";
 import { qualifyReferralOnFulfilment, linkReferralFromCheckout } from "./referrals.server";
 import { runEffects } from "./effects.server";
@@ -300,7 +300,33 @@ export async function handleRefund(shop, refund, admin) {
   return result;
 }
 
-/** Cron: unlock purchase points whose release date has passed. */
+/**
+ * Order-streak bonus: every Nth credited order paid inside the streak window
+ * earns a flat coin bonus. Idempotent per order.
+ */
+async function awardStreak(tx, member, settings, order, now, effects) {
+  const rule = settings.earnRules.streak;
+  if (!rule?.enabled || !rule.points || member.excluded) return;
+  const count = await tx.loyaltyOrder.count({
+    where: { memberId: member.id, status: "CREDITED", paidAt: { gte: addDays(now, -rule.windowDays) } },
+  });
+  if (!streakDue(count, rule.orders)) return;
+  await creditPoints(
+    tx,
+    member,
+    settings,
+    {
+      points: rule.points,
+      type: "STREAK",
+      key: `streak:${order.orderId}`,
+      orderId: order.orderId,
+      description: `${rule.orders}-order streak bonus`,
+    },
+    effects,
+  );
+}
+
+/** Cron: unlock purchase coins whose release date has passed. */
 export async function releaseDueOrders(shop, now = new Date()) {
   const settings = await getSettings(shop);
   const due = await prisma.loyaltyOrder.findMany({
@@ -317,11 +343,13 @@ export async function releaseDueOrders(shop, now = new Date()) {
       const entry = await tx.ledgerEntry.findUnique({
         where: { shop_idempotencyKey: { shop, idempotencyKey: `order:${fresh.orderId}` } },
       });
+      // Mark the order credited first so it counts toward the member's tier spend.
+      await tx.loyaltyOrder.update({ where: { id: fresh.id }, data: { status: "CREDITED" } });
       if (entry) {
         const r = await releasePending(tx, member, settings, entry, effects);
         released += r.released;
       }
-      await tx.loyaltyOrder.update({ where: { id: fresh.id }, data: { status: "CREDITED" } });
+      await awardStreak(tx, member, settings, fresh, now, effects);
     });
   }
   await runEffects(shop, effects);

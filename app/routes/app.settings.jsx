@@ -74,8 +74,8 @@ export async function action({ request }) {
       return {
         toast:
           intent === "retro-preview"
-            ? `Preview: ${formatPoints(out.eligible)} customers would get ${formatPoints(out.points)} points`
-            : `Awarded ${formatPoints(out.points)} points to ${formatPoints(out.eligible)} customers`,
+            ? `Preview: ${formatPoints(out.eligible)} customers would get ${formatPoints(out.points)} coins`
+            : `Awarded ${formatPoints(out.points)} coins to ${formatPoints(out.eligible)} customers`,
         retro: out,
       };
     } catch (err) {
@@ -131,8 +131,8 @@ export default function Settings() {
             <CopyValue value={i.judgeme} />
           </IntegrationBlock>
           <IntegrationBlock title="Shopify Flow" ready>
-            Use the four <s-text type="strong">Club</s-text> triggers (points earned, tier changed, reward redeemed, points expiring) to send email or
-            WhatsApp. To give points from Flow, add a <s-text type="strong">Send HTTP request</s-text> action to <CopyValue value={i.flowUrl} /> with
+            Use the four <s-text type="strong">Club</s-text> triggers (coins earned, tier changed, reward redeemed, coins expiring) to send email or
+            WhatsApp. To give coins from Flow, add a <s-text type="strong">Send HTTP request</s-text> action to <CopyValue value={i.flowUrl} /> with
             header <s-text type="strong">X-Club-Key</s-text>: <CopyValue value={i.secret} />
           </IntegrationBlock>
           <IntegrationBlock title="Instagram follow check" ready={i.instagramReady}>
@@ -155,19 +155,19 @@ export default function Settings() {
         </s-stack>
       </s-section>
 
-      <s-section heading="Welcome-back points for existing customers">
+      <s-section heading="Welcome-back coins for existing customers">
         <Form method="post">
           <s-stack gap="base">
             <s-paragraph>
-              Give customers who shopped before launch a share of their lifetime spend as points, with a cap. Preview first. Each customer is only
+              Give customers who shopped before launch a share of their lifetime spend as coins, with a cap. Preview first. Each customer is only
               ever paid once, so a run that stops can be restarted.
             </s-paragraph>
             <s-grid gridTemplateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap="base">
               <s-number-field name="percent" label="% of lifetime spend" value="50" min="1" max="100" suffix="%" />
-              <s-number-field name="cap" label="Cap per customer (points)" value="2500" min="1" />
+              <s-number-field name="cap" label="Cap per customer (coins)" value="2500" min="1" />
               <s-select name="intent" label="Mode" value="retro-preview">
                 <s-option value="retro-preview">Preview only</s-option>
-                <s-option value="retro-run">Award points for real</s-option>
+                <s-option value="retro-run">Award coins for real</s-option>
               </s-select>
               <s-text-field name="confirm" label="To award, type AWARD" autocomplete="off" />
             </s-grid>
@@ -216,7 +216,7 @@ export default function Settings() {
 
       <s-section slot="aside" heading="Testing before launch">
         <s-paragraph>
-          While the club isn't live, only customers tagged <s-text type="strong">club-tester</s-text> earn points and see their balance. Tag yourself
+          While the club isn't live, only customers tagged <s-text type="strong">club-tester</s-text> earn coins and see their balance. Tag yourself
           in Shopify, place a test order, and check the Members page.
         </s-paragraph>
       </s-section>

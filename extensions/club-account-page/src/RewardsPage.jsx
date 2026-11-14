@@ -54,7 +54,7 @@ function RewardsPage() {
     return (
       <s-page heading={program.name}>
         <s-section>
-          <s-paragraph>The club opens soon. Check back after launch to start earning points on every order.</s-paragraph>
+          <s-paragraph>The club opens soon. Check back after launch to start earning coins on every order.</s-paragraph>
         </s-section>
       </s-page>
     );
@@ -66,17 +66,18 @@ function RewardsPage() {
         <s-stack gap="base">
           <s-heading>{member.worthLabel} to spend</s-heading>
           <s-text>
-            {pts(member.balance)} points
+            {pts(member.balance)} Club Coins (1 coin = ₹1)
             {member.pending ? `, plus ${pts(member.pending)} unlocking after delivery` : ""}
           </s-text>
-          {member.nextTier ? (
-            <s-text color="subdued">
-              {pts(member.nextTier.pointsNeeded)} points to {member.nextTier.name} ({member.nextTier.multiplier}x points on every order)
-            </s-text>
-          ) : null}
+          <s-text color="subdued">
+            {money(member.tierSpend)} spent {windowLabel(program.tierWindowDays)}.
+            {member.nextTier
+              ? ` Spend ${money(member.nextTier.amountNeeded ?? member.nextTier.pointsNeeded)} more to reach ${member.nextTier.name} (${member.nextTier.multiplier}x coins on every order).`
+              : " You're at the top tier."}
+          </s-text>
           {member.nextExpiry ? (
             <s-text color="subdued">
-              {pts(member.nextExpiry.points)} points expire on {date(member.nextExpiry.date)}.
+              {pts(member.nextExpiry.points)} coins expire on {date(member.nextExpiry.date)}. Use them before then.
             </s-text>
           ) : null}
         </s-stack>
@@ -92,14 +93,22 @@ function RewardsPage() {
         </s-section>
       ) : null}
 
-      <s-section heading="Rewards">
+      <s-section heading="Use your coins">
         <s-stack gap="base">
+          {program.storeCredit ? (
+            <s-paragraph>
+              In your cart, tap Use coins. They're added to your account as store credit, and you apply it in one tap at checkout.
+            </s-paragraph>
+          ) : null}
+          <s-text color="subdued">
+            Coins work on orders of {money(program.minRedeemSubtotal)} or more and can pay for up to {program.maxRedeemPercent}% of an order.
+          </s-text>
+          <s-stack direction="inline" gap="base">
+            <s-button href="shopify:storefront/collections/all">Shop now</s-button>
+          </s-stack>
           {state.rewards.map((r) => (
             <RewardRow key={r.id} reward={r} onRedeemed={load} />
           ))}
-          <s-text color="subdued">
-            100 points = {money(program.pointValue * 100)}. Points can pay for up to {program.maxRedeemPercent}% of an order.
-          </s-text>
         </s-stack>
       </s-section>
 
@@ -115,11 +124,11 @@ function RewardsPage() {
             </s-stack>
           ))}
           {!member.birthdaySet ? <BirthdayForm onSaved={load} /> : null}
-          <ReferralLink code={member.referral.code} storefrontUrl={program.storefrontUrl} />
+          <ReferralLink code={member.referral.code} storefrontUrl={program.storefrontUrl} friendCoins={state.earn.find((e) => e.key === "referral")?.friendPoints} />
         </s-stack>
       </s-section>
 
-      <s-section heading="Points history">
+      <s-section heading="Coins history">
         {state.history.length === 0 ? (
           <s-paragraph>Nothing yet. Your first order starts the count.</s-paragraph>
         ) : (
@@ -141,6 +150,12 @@ function RewardsPage() {
       </s-section>
     </s-page>
   );
+}
+
+function windowLabel(days) {
+  if (!days) return "so far";
+  if (days === 365) return "in the last 12 months";
+  return `in the last ${days} days`;
 }
 
 function CodeRow({ code }) {
@@ -179,7 +194,7 @@ function RewardRow({ reward, onRedeemed }) {
       .finally(() => setBusy(false));
   };
 
-  const meta = `${pts(reward.points)} points${reward.minSubtotal ? `, orders over ${money(reward.minSubtotal)}` : ""}`;
+  const meta = `${pts(reward.points)} coins${reward.minSubtotal ? `, orders over ${money(reward.minSubtotal)}` : ""}`;
   return (
     <s-stack gap="small">
       <s-stack direction="inline" justifyContent="space-between" alignItems="center" gap="base">
@@ -196,10 +211,10 @@ function RewardRow({ reward, onRedeemed }) {
         )}
       </s-stack>
       {confirming ? (
-        <s-banner heading={`Spend ${pts(reward.points)} points on ${reward.title}?`}>
+        <s-banner heading={`Spend ${pts(reward.points)} coins on ${reward.title}?`}>
           You'll get a code for your next order.
           <s-button slot="secondary-actions" variant="primary" loading={busy || undefined} onClick={redeem}>
-            Spend points
+            Spend coins
           </s-button>
           <s-button slot="secondary-actions" onClick={() => setConfirming(false)}>
             Keep them
@@ -261,7 +276,7 @@ function BirthdayForm({ onSaved }) {
   );
 }
 
-function ReferralLink({ code, storefrontUrl }) {
+function ReferralLink({ code, storefrontUrl, friendCoins }) {
   // shopify.shop only exists on order status targets, not on full pages.
   const base = storefrontUrl || shopify.shop?.storefrontUrl;
   if (!base || !code) return null;
@@ -270,7 +285,7 @@ function ReferralLink({ code, storefrontUrl }) {
     <s-stack gap="small">
       <s-text type="strong">Your referral link</s-text>
       <s-text-field label="Referral link" labelAccessibilityVisibility="exclusive" value={url} readOnly />
-      <s-button href={`https://wa.me/?text=${encodeURIComponent(`Join the Wearduds Club with my link and get points off your first order: ${url}`)}`} target="_blank">
+      <s-button href={`https://wa.me/?text=${encodeURIComponent(`Join the Wearduds Club with my link${friendCoins ? ` and get ₹${pts(friendCoins)} in Club Coins` : ""}: ${url}`)}`} target="_blank">
         Send on WhatsApp
       </s-button>
     </s-stack>

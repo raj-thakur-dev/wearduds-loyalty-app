@@ -1,5 +1,5 @@
 import prisma from "../db.server";
-import { addDays, rankOf, tierForPoints } from "./math";
+import { addDays, netSpend, rankOf, tierForPoints } from "./math";
 import { LEDGER_LABELS } from "./defaults";
 
 // Invariant kept by every function here:
@@ -15,9 +15,26 @@ export class LoyaltyError extends Error {
 
 const NON_TIER_TYPES = new Set(["REDEMPTION_RESTORED"]);
 
-/** Points that count toward tier: lifetime earned minus any inactivity reset. */
+/** Legacy points-based tier score. Tiers now use ₹ spend; kept for old callers. */
 export function tierPoints(member) {
   return Math.max(0, member.lifetimeEarned - (member.tierPointsOffset || 0));
+}
+
+/**
+ * ₹ net spend that counts toward tiers: orders whose coins have unlocked (so
+ * the return window has passed), paid inside the tier window, minus refunds.
+ * `windowDays` 0 counts every order ever.
+ */
+export async function computeTierSpend(tx, member, windowDays, now = new Date()) {
+  const where = { memberId: member.id, status: "CREDITED" };
+  if (windowDays > 0) where.paidAt = { gte: addDays(now, -windowDays) };
+  const orders = await tx.loyaltyOrder.findMany({ where, select: { eligibleAmount: true, refundedAmount: true } });
+  return netSpend(orders);
+}
+
+async function tierWindowDays(tx, shop) {
+  const row = await tx.programSettings.findUnique({ where: { shop }, select: { downgradeAfterDays: true } });
+  return row ? row.downgradeAfterDays : 365;
 }
 
 /**
@@ -98,7 +115,7 @@ export async function creditPoints(tx, member, settings, opts, effects = []) {
 
   if (available) {
     effects.push({ kind: "points_earned", memberId: member.id, points: amount, type, description: entry.description });
-    if (countsForTier) await evaluateTier(tx, member, effects);
+    if (countsForTier && type === "PURCHASE") await evaluateTier(tx, member, effects);
   }
   effects.push({ kind: "sync", memberId: member.id });
   return { entry };
@@ -117,7 +134,7 @@ export async function debitPoints(tx, member, opts, effects = []) {
   if (dupe) return { entry: dupe, duplicate: true };
 
   if (member.balance < wanted && !allowPartial) {
-    throw new LoyaltyError("INSUFFICIENT_POINTS", "Not enough points for that reward.");
+    throw new LoyaltyError("INSUFFICIENT_POINTS", "You don't have enough coins for that.");
   }
   const take = Math.min(wanted, Math.max(0, member.balance));
 
@@ -212,12 +229,20 @@ export async function restoreDebit(tx, member, debitEntry, opts, effects = []) {
   return { entry, restored };
 }
 
-/** Moves a member to the tier their lifetime points earn (upgrades only; downgrades run in a job). */
+/**
+ * Refreshes the member's ₹ tier spend and moves them up if it now reaches a
+ * higher tier. Downgrades run in the daily job so a refund never drops a tier mid-order.
+ */
 export async function evaluateTier(tx, member, effects = []) {
+  const spend = await computeTierSpend(tx, member, await tierWindowDays(tx, member.shop));
+  if (spend !== member.tierSpend) {
+    const updated = await tx.member.update({ where: { id: member.id }, data: { tierSpend: spend } });
+    Object.assign(member, updated);
+  }
   if (member.tierLocked) return { changed: false };
   const tiers = await tx.tier.findMany({ where: { shop: member.shop }, orderBy: { threshold: "asc" } });
   if (tiers.length === 0) return { changed: false };
-  const target = tierForPoints(tiers, tierPoints(member));
+  const target = tierForPoints(tiers, spend);
   const current = tiers.find((t) => t.id === member.tierId) || null;
   if (current && rankOf(tiers, target) <= rankOf(tiers, current)) return { changed: false };
   if (!target || target.id === member.tierId) return { changed: false };
@@ -314,7 +339,7 @@ export async function expireDueCredits(tx, member, now = new Date(), effects = [
       status: "AVAILABLE",
       remaining: 0,
       availableAt: now,
-      description: `${take.toLocaleString("en-IN")} points expired`,
+      description: `${take.toLocaleString("en-IN")} ${take === 1 ? "coin" : "coins"} expired`,
       idempotencyKey: `expiry:${member.id}:${now.toISOString()}`,
       meta: { entries: due.map((e) => ({ id: e.id, n: e.remaining })) },
     },

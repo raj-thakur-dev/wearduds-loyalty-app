@@ -4,7 +4,7 @@ import { ensureMember, findMember } from "./members.server";
 import { recordSignIn, setBirthday, startInstagramVerification } from "./actions.server";
 import { claimReferral } from "./referrals.server";
 import { redeem } from "./redeem.server";
-import { tierPoints, LoyaltyError } from "./ledger.server";
+import { LoyaltyError } from "./ledger.server";
 import { formatMoney, maxSliderPoints, minimumSubtotalFor, nextTierProgress, pointsToMoney, rankOf } from "./math";
 import { LEDGER_LABELS } from "./defaults";
 import { programActiveFor } from "./orders.server";
@@ -19,7 +19,8 @@ function earnList(settings, member) {
   const list = [];
   const rate = settings.pointsPerCurrency;
   if (r.purchase.enabled) {
-    list.push({ key: "purchase", title: "Shop", points: null, detail: `${rate === 1 ? "1 point" : `${rate} points`} for every ₹1`, status: "always" });
+    const pct = Math.round(rate * 1000) / 10;
+    list.push({ key: "purchase", title: "Shop", points: null, detail: `${pct}% back in coins on every order`, status: "always" });
   }
   if (r.signup.enabled) {
     list.push({ key: "signup", title: "Create an account", points: r.signup.points, status: member?.signedInAt ? "done" : "available" });
@@ -29,7 +30,7 @@ function earnList(settings, member) {
       key: "birthday",
       title: "Add your birthday",
       points: r.birthdaySetup.enabled ? r.birthdaySetup.points : 0,
-      detail: r.birthday.enabled ? `Plus ${r.birthday.points} points every birthday` : null,
+      detail: r.birthday.enabled ? `Plus ${r.birthday.points} coins every birthday` : null,
       status: member?.birthMonth ? "done" : "available",
     });
   }
@@ -47,8 +48,17 @@ function earnList(settings, member) {
       key: "referral",
       title: "Refer a friend",
       points: r.referral.referrerPoints,
-      detail: `They get ${r.referral.friendPoints} points when they join`,
+      detail: `They get ${r.referral.friendPoints} coins when they join, you get yours when their order is delivered`,
       friendPoints: r.referral.friendPoints,
+      status: "repeat",
+    });
+  }
+  if (r.streak?.enabled) {
+    list.push({
+      key: "streak",
+      title: `Order streak`,
+      points: r.streak.points,
+      detail: `Every ${r.streak.orders} orders within ${r.streak.windowDays} days`,
       status: "repeat",
     });
   }
@@ -66,7 +76,9 @@ function rewardList(settings, rewards, tiers, member, cartSubtotal) {
   const myRank = member ? rankOf(tiers, tiers.find((t) => t.id === member.tierId)) : -1;
   return rewards.map((rw) => {
     const minSubtotal =
-      rw.type === "FIXED_AMOUNT" ? minimumSubtotalFor(rw.value, settings.maxRedeemPercent, rw.minSubtotal) : rw.minSubtotal || null;
+      rw.type === "FIXED_AMOUNT"
+        ? minimumSubtotalFor(rw.value, settings.maxRedeemPercent, Math.max(rw.minSubtotal || 0, settings.minRedeemSubtotal || 0))
+        : rw.minSubtotal || null;
     const tierLocked = rw.minTierId ? myRank < rankOf(tiers, tiers.find((t) => t.id === rw.minTierId)) : false;
     return {
       id: rw.id,
@@ -97,6 +109,9 @@ export async function buildState(shop, customerId, { cartSubtotal = null, admin 
     pointValue: settings.pointValue,
     pointsPerCurrency: settings.pointsPerCurrency,
     maxRedeemPercent: settings.maxRedeemPercent,
+    minRedeemSubtotal: settings.minRedeemSubtotal,
+    earnPercent: Math.round(settings.pointsPerCurrency * 1000) / 10,
+    tierWindowDays: settings.downgradeAfterDays,
     expiryDays: settings.expiryDays,
     slider: settings.sliderEnabled ? { step: settings.sliderStep, min: settings.sliderMinPoints } : null,
     storeCredit: settings.storeCreditEnabled,
@@ -139,7 +154,7 @@ export async function buildState(shop, customerId, { cartSubtotal = null, admin 
     prisma.referral.groupBy({ by: ["status"], where: { referrerId: member.id }, _count: true }),
   ]);
 
-  const progress = nextTierProgress(tiers, tierPoints(member));
+  const progress = nextTierProgress(tiers, member.tierSpend || 0);
   const nextExpiry = await prisma.ledgerEntry.findFirst({
     where: { memberId: member.id, status: "AVAILABLE", remaining: { gt: 0 }, expiresAt: { not: null } },
     orderBy: { expiresAt: "asc" },
@@ -159,7 +174,11 @@ export async function buildState(shop, customerId, { cartSubtotal = null, admin 
       excluded: member.excluded,
       memberSince: member.createdAt,
       tier: publicTier(tiers.find((t) => t.id === member.tierId)),
-      nextTier: progress.next ? { ...publicTier(progress.next), pointsNeeded: progress.pointsNeeded } : null,
+      // Tiers run on ₹ spend: amountNeeded is ₹ more to spend (pointsNeeded kept for older surfaces).
+      tierSpend: member.tierSpend || 0,
+      nextTier: progress.next
+        ? { ...publicTier(progress.next), amountNeeded: progress.pointsNeeded, pointsNeeded: progress.pointsNeeded }
+        : null,
       tierProgress: progress.progress,
       birthdaySet: !!member.birthMonth,
       instagramVerified: !!member.instagramId,
@@ -172,13 +191,18 @@ export async function buildState(shop, customerId, { cartSubtotal = null, admin 
       slider:
         settings.sliderEnabled && cartSubtotal != null
           ? {
-              max: maxSliderPoints({
-                balance: member.balance,
-                cartSubtotal,
-                pointValue: settings.pointValue,
-                maxRedeemPercent: settings.maxRedeemPercent,
-                step: settings.sliderStep,
-              }),
+              // Below the minimum cart, nothing can be used yet; cartShortBy says how far off it is.
+              max:
+                cartSubtotal >= (settings.minRedeemSubtotal || 0)
+                  ? maxSliderPoints({
+                      balance: member.balance,
+                      cartSubtotal,
+                      pointValue: settings.pointValue,
+                      maxRedeemPercent: settings.maxRedeemPercent,
+                      step: settings.sliderStep,
+                    })
+                  : 0,
+              cartShortBy: Math.max(0, Math.ceil((settings.minRedeemSubtotal || 0) - cartSubtotal)),
             }
           : null,
     },
@@ -203,7 +227,7 @@ export async function buildState(shop, customerId, { cartSubtotal = null, admin 
 }
 
 async function requireMember(shop, customerId) {
-  if (!customerId) throw new LoyaltyError("SIGN_IN", "Sign in to use your points.", 401);
+  if (!customerId) throw new LoyaltyError("SIGN_IN", "Sign in to use your coins.", 401);
   const settings = await getSettings(shop);
   const member = await findMember(shop, customerId);
   if (!member) {
@@ -218,7 +242,7 @@ export async function performAction(shop, customerId, action, body, admin) {
   const member = await requireMember(shop, customerId);
   switch (action) {
     case "redeem":
-      return redeem(shop, member.id, { rewardId: body.rewardId, points: body.points, kind: body.kind }, admin);
+      return redeem(shop, member.id, { rewardId: body.rewardId, points: body.points, kind: body.kind, cartSubtotal: body.cartSubtotal }, admin);
     case "birthday":
       await setBirthday(shop, member, body, admin);
       return { ok: true };

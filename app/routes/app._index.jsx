@@ -149,7 +149,7 @@ export default function Overview() {
       {data.live ? (
         <s-banner tone="success" heading="The club is live">
           <s-stack direction="inline" gap="base" alignItems="center">
-            <s-text>Customers are earning and redeeming points.</s-text>
+            <s-text>Customers are earning and redeeming coins.</s-text>
             <Form method="post">
               <input type="hidden" name="intent" value="pause" />
               <s-button type="submit" variant="tertiary" tone="critical" loading={busy || undefined}>
@@ -162,7 +162,7 @@ export default function Overview() {
         <s-banner tone="warning" heading="The club isn't live yet">
           <s-stack gap="base">
             <s-paragraph>
-              Only customers tagged <s-text type="strong">club-tester</s-text> earn points and see the widget. Work
+              Only customers tagged <s-text type="strong">club-tester</s-text> earn coins and see the widget. Work
               through the checklist, then go live.
             </s-paragraph>
             <Form method="post">
@@ -179,12 +179,12 @@ export default function Overview() {
         <s-grid gridTemplateColumns="repeat(auto-fit, minmax(180px, 1fr))" gap="base">
           <Metric label="Members" value={formatPoints(stats.members)} help={`${formatPoints(stats.signedIn)} signed in`} />
           <Metric
-            label="Points outstanding"
+            label="Coins outstanding"
             value={formatPoints(stats.outstanding)}
             help={`${formatMoney(stats.liability, data.currency)} liability · ${formatPoints(stats.pending)} pending`}
           />
-          <Metric label="Points issued" value={formatPoints(stats.issued30)} help="Unlocked and spendable" />
-          <Metric label="Points redeemed" value={formatPoints(stats.redeemed30)} help={`${stats.redemptionRate}% of all points earned`} />
+          <Metric label="Coins issued" value={formatPoints(stats.issued30)} help="Unlocked and spendable" />
+          <Metric label="Coins redeemed" value={formatPoints(stats.redeemed30)} help={`${stats.redemptionRate}% of all coins earned`} />
           <Metric label="Reward codes" value={`${stats.codesUsed} / ${stats.codesIssued}`} help="Used / issued" />
           <Metric
             label="Orders using a reward"
@@ -219,7 +219,7 @@ export default function Overview() {
       <s-section heading="Recent activity">
         {data.recent.length === 0 ? (
           <s-stack gap="small" alignItems="center" padding="large">
-            <s-heading>No points yet</s-heading>
+            <s-heading>No coins yet</s-heading>
             <s-paragraph>Activity shows up here once members start earning.</s-paragraph>
           </s-stack>
         ) : (
@@ -227,7 +227,7 @@ export default function Overview() {
             <s-table-header-row>
               <s-table-header listSlot="primary">Member</s-table-header>
               <s-table-header>Activity</s-table-header>
-              <s-table-header format="numeric">Points</s-table-header>
+              <s-table-header format="numeric">Coins</s-table-header>
               <s-table-header>Date</s-table-header>
             </s-table-header-row>
             <s-table-body>
@@ -265,10 +265,10 @@ export default function Overview() {
             Checkout &amp; accounts editor &gt; add the Rewards page to the menu
           </ChecklistItem>
           <ChecklistItem done={data.checklist.cronRunning} title="Scheduled jobs running" href="/app/settings">
-            Unlocks points, expiry and birthdays every hour
+            Unlocks coins, expiry and birthdays every hour
           </ChecklistItem>
           <ChecklistItem done={data.checklist.integrations} title="Connect Judge.me and Flow" href="/app/settings#integrations">
-            Review points and email/WhatsApp automations
+            Review coins and email/WhatsApp automations
           </ChecklistItem>
           <s-text color="subdued">Steps tick themselves once the store sends real traffic through them. Visit the page, then reload this screen.</s-text>
           <Form method="post">

@@ -87,6 +87,8 @@ const NUMERIC_FIELDS = {
   fallbackDays: { min: 1, max: 120 },
   expiryDays: { min: 0, max: 3650 },
   expiryWarningDays: { min: 1, max: 90 },
+  expirySecondWarningDays: { min: 0, max: 90 },
+  minRedeemSubtotal: { min: 0, max: 1000000, float: true },
   maxRedeemPercent: { min: 1, max: 100 },
   codeExpiryDays: { min: 1, max: 365 },
   sliderStep: { min: 1, max: 100000 },
@@ -145,7 +147,7 @@ export function validateSettingsInput(input) {
   return Object.keys(errors).length ? { errors } : { data };
 }
 
-const RULE_LIMITS = { points: [0, 100000], daysBefore: [0, 30], minWords: [0, 500], referrerPoints: [0, 100000], friendPoints: [0, 100000], monthlyCap: [0, 1000] };
+const RULE_LIMITS = { orders: [2, 50], windowDays: [7, 730], points: [0, 100000], daysBefore: [0, 30], minWords: [0, 500], referrerPoints: [0, 100000], friendPoints: [0, 100000], monthlyCap: [0, 1000] };
 
 /** Validates and merges an earn-rules update for one rule key. */
 export function validateEarnRule(key, input, current) {

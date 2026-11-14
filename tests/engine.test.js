@@ -7,7 +7,7 @@ import { redeem } from "../app/loyalty/redeem.server";
 import { findMember, ensureMember } from "../app/loyalty/members.server";
 import { adjustPoints, awardBirthdays, awardReview, recordSignIn, setBirthday } from "../app/loyalty/actions.server";
 import { claimReferral } from "../app/loyalty/referrals.server";
-import { expirePoints, downgradeInactive } from "../app/loyalty/jobs.server";
+import { expirePoints, refreshTiers, warnExpiringPoints } from "../app/loyalty/jobs.server";
 import { buildState } from "../app/loyalty/storefront.server";
 import { addDays } from "../app/loyalty/math";
 
@@ -17,6 +17,42 @@ const DAY = 86400000;
 async function live() {
   await getSettings(SHOP);
   return updateSettings(SHOP, { isLive: true });
+}
+
+/**
+ * The original points economics (1 point per ₹1, 100 points = ₹10, ₹ code
+ * rewards). The ledger mechanics tests below run on these numbers so they stay
+ * readable; the "coins program" tests cover the live defaults.
+ */
+async function legacy() {
+  await live();
+  await prisma.reward.createMany({
+    data: [
+      { shop: SHOP, title: "₹50 off", type: "FIXED_AMOUNT", value: 50, pointsCost: 500, minSubtotal: 500, sortOrder: 0 },
+      { shop: SHOP, title: "₹100 off", type: "FIXED_AMOUNT", value: 100, pointsCost: 1000, minSubtotal: 800, sortOrder: 1 },
+      { shop: SHOP, title: "₹250 off", type: "FIXED_AMOUNT", value: 250, pointsCost: 2500, minSubtotal: 1500, sortOrder: 2 },
+      { shop: SHOP, title: "₹500 off", type: "FIXED_AMOUNT", value: 500, pointsCost: 5000, minSubtotal: 3000, sortOrder: 3 },
+    ],
+  });
+  return updateSettings(SHOP, {
+    pointsPerCurrency: 1,
+    pointValue: 0.1,
+    expiryDays: 365,
+    sliderStep: 100,
+    sliderMinPoints: 500,
+    minRedeemSubtotal: 0,
+    storeCreditEnabled: false,
+    downgradeAfterDays: 365,
+    earnRules: {
+      signup: { enabled: true, points: 100 },
+      birthdaySetup: { enabled: true, points: 50 },
+      birthday: { enabled: true, points: 200, daysBefore: 3 },
+      review: { enabled: true, points: 50, minWords: 20, requireVerifiedBuyer: true },
+      photoReview: { enabled: true, points: 100 },
+      referral: { enabled: true, referrerPoints: 300, friendPoints: 100, monthlyCap: 10 },
+      streak: { enabled: false, points: 0, orders: 3, windowDays: 90 },
+    },
+  });
 }
 
 /** Pays an order, delivers it, and releases points 8 days later. */
@@ -41,7 +77,7 @@ afterAll(async () => {
 
 describe("purchase points", () => {
   it("parks points as pending until delivery + 7 days, then unlocks them", async () => {
-    await live();
+    await legacy();
     const order = orderPayload({ customerId: 11, amount: 1999 });
     await handleOrderPaid(SHOP, order, fakeAdmin);
     let m = await findMember(SHOP, 11);
@@ -66,7 +102,7 @@ describe("purchase points", () => {
   });
 
   it("ignores duplicate webhooks", async () => {
-    await live();
+    await legacy();
     const order = orderPayload({ customerId: 12, amount: 500 });
     await handleOrderPaid(SHOP, order, fakeAdmin);
     await handleOrderPaid(SHOP, order, fakeAdmin);
@@ -80,15 +116,16 @@ describe("purchase points", () => {
     await handleOrderPaid(SHOP, orderPayload({ customerId: 13, amount: 500 }), fakeAdmin);
     expect(await findMember(SHOP, 13)).toBeNull();
     await handleOrderPaid(SHOP, orderPayload({ customerId: 14, amount: 500, tags: "vip, club-tester" }), fakeAdmin);
-    expect((await findMember(SHOP, 14)).pending).toBe(500);
+    expect((await findMember(SHOP, 14)).pending).toBe(15); // 3% of ₹500
   });
 
-  it("upgrades tier on lifetime points and applies the new multiplier", async () => {
-    await live();
+  it("upgrades tier on ₹ spend once the return window passes and applies the new multiplier", async () => {
+    await legacy();
     await earn(15, 5200);
     let m = await findMember(SHOP, 15);
     const gold = await prisma.tier.findFirst({ where: { shop: SHOP, name: "Gold" } });
     expect(m.tierId).toBe(gold.id);
+    expect(m.tierSpend).toBe(5200);
     await handleOrderPaid(SHOP, orderPayload({ customerId: 15, amount: 1000 }), fakeAdmin);
     m = await findMember(SHOP, 15);
     expect(m.pending).toBe(1250);
@@ -98,7 +135,7 @@ describe("purchase points", () => {
 
 describe("refunds and cancellations", () => {
   it("shrinks pending points on a partial refund and ignores repeats", async () => {
-    await live();
+    await legacy();
     const order = orderPayload({ customerId: 21, amount: 2000 });
     await handleOrderPaid(SHOP, order, fakeAdmin);
     const refund = { id: 9001, order_id: order.id, refund_line_items: [{ subtotal: "500.00", line_item: {} }] };
@@ -109,7 +146,7 @@ describe("refunds and cancellations", () => {
   });
 
   it("claws back released points on refund without going negative", async () => {
-    await live();
+    await legacy();
     const order = await earn(22, 1000);
     const m0 = await findMember(SHOP, 22);
     await adjustPoints(SHOP, m0.id, { points: -800, reason: "test spend", staff: "t" }, fakeAdmin);
@@ -120,7 +157,7 @@ describe("refunds and cancellations", () => {
   });
 
   it("cancels pending points and returns points spent on a reward used in that order", async () => {
-    await live();
+    await legacy();
     await earn(23, 1000);
     const member = await findMember(SHOP, 23);
     const reward = await prisma.reward.findFirst({ where: { shop: SHOP, pointsCost: 500 } });
@@ -140,7 +177,7 @@ describe("refunds and cancellations", () => {
 
 describe("redemption", () => {
   it("issues a code locked to the customer with the minimum order", async () => {
-    await live();
+    await legacy();
     await earn(31, 3000);
     const member = await findMember(SHOP, 31);
     const reward = await prisma.reward.findFirst({ where: { shop: SHOP, pointsCost: 1000 } });
@@ -156,7 +193,7 @@ describe("redemption", () => {
   });
 
   it("converts slider points at 100 = ₹10 with a 20% cap", async () => {
-    await live();
+    await legacy();
     await earn(32, 3000);
     const member = await findMember(SHOP, 32);
     const res = await redeem(SHOP, member.id, { points: 1300 }, fakeAdmin);
@@ -166,16 +203,16 @@ describe("redemption", () => {
   });
 
   it("refuses when points are short", async () => {
-    await live();
+    await legacy();
     await earn(33, 400);
     const member = await findMember(SHOP, 33);
     const reward = await prisma.reward.findFirst({ where: { shop: SHOP, pointsCost: 500 } });
-    await expect(redeem(SHOP, member.id, { rewardId: reward.id }, fakeAdmin)).rejects.toThrow(/Not enough points/);
+    await expect(redeem(SHOP, member.id, { rewardId: reward.id }, fakeAdmin)).rejects.toThrow(/enough coins/);
     await assertInvariant(prisma, member.id, expect);
   });
 
   it("never overspends under concurrent redemptions", async () => {
-    await live();
+    await legacy();
     await earn(34, 1200);
     const member = await findMember(SHOP, 34);
     const reward = await prisma.reward.findFirst({ where: { shop: SHOP, pointsCost: 500 } });
@@ -188,12 +225,12 @@ describe("redemption", () => {
   });
 
   it("puts the points back when Shopify refuses the discount", async () => {
-    await live();
+    await legacy();
     await earn(35, 1000);
     const member = await findMember(SHOP, 35);
     fakeAdmin.state.failDiscount = true;
     const reward = await prisma.reward.findFirst({ where: { shop: SHOP, pointsCost: 500 } });
-    await expect(redeem(SHOP, member.id, { rewardId: reward.id }, fakeAdmin)).rejects.toThrow(/points are safe/);
+    await expect(redeem(SHOP, member.id, { rewardId: reward.id }, fakeAdmin)).rejects.toThrow(/safe/);
     const m = await assertInvariant(prisma, member.id, expect);
     expect(m.balance).toBe(1000);
     expect(m.lifetimeSpent).toBe(0);
@@ -203,7 +240,7 @@ describe("redemption", () => {
 
 describe("expiry", () => {
   it("expires the oldest points first and keeps the ledger consistent", async () => {
-    await live();
+    await legacy();
     await earn(41, 1000);
     const member = await findMember(SHOP, 41);
     await expirePoints(SHOP, new Date(Date.now() + 400 * DAY));
@@ -215,7 +252,7 @@ describe("expiry", () => {
 
 describe("earn actions", () => {
   it("gives the welcome bonus once, on first sign-in", async () => {
-    const settings = await live();
+    const settings = await legacy();
     const member = await ensureMember(SHOP, 51, { firstName: "Arjun" });
     await recordSignIn(SHOP, member, settings, fakeAdmin);
     await recordSignIn(SHOP, await findMember(SHOP, 51), settings, fakeAdmin);
@@ -223,7 +260,7 @@ describe("earn actions", () => {
   });
 
   it("rewards adding a birthday once and the birthday itself once a year", async () => {
-    await live();
+    await legacy();
     const member = await ensureMember(SHOP, 52);
     const soon = addDays(new Date(), 2);
     await setBirthday(SHOP, member, { month: soon.getUTCMonth() + 1, day: soon.getUTCDate() }, fakeAdmin);
@@ -234,7 +271,7 @@ describe("earn actions", () => {
   });
 
   it("rewards reviews and tops up when a photo is added", async () => {
-    await live();
+    await legacy();
     const member = await ensureMember(SHOP, 53, { email: "rev@example.com" });
     const body = "Heavy fabric, the fit is properly oversized and it survived ten washes without fading at all, honestly great value for the price";
     await awardReview(SHOP, { email: "REV@example.com", reviewId: "r1", body, hasPhoto: false });
@@ -250,7 +287,7 @@ describe("earn actions", () => {
 
 describe("referrals", () => {
   it("rewards the friend on signup and the referrer when the first order ships", async () => {
-    const settings = await live();
+    const settings = await legacy();
     const referrer = await ensureMember(SHOP, 61, { firstName: "Riya", email: "riya@example.com" });
     const friend = await ensureMember(SHOP, 62, { firstName: "Kabir", email: "kabir@example.com" });
 
@@ -269,7 +306,7 @@ describe("referrals", () => {
   });
 
   it("links a referral passed through the cart at checkout", async () => {
-    await live();
+    await legacy();
     const referrer = await ensureMember(SHOP, 63, { firstName: "Dev" });
     await handleOrderPaid(SHOP, orderPayload({ customerId: 64, amount: 900, refCode: referrer.referralCode }), fakeAdmin);
     const friend = await findMember(SHOP, 64);
@@ -278,37 +315,45 @@ describe("referrals", () => {
   });
 });
 
-describe("tier downgrade", () => {
-  it("drops a tier after a year with no orders and makes the member re-earn it", async () => {
-    await live();
+describe("tier refresh", () => {
+  it("drops a tier when spend falls out of the 12-month window", async () => {
+    await legacy();
     await earn(71, 6000);
     const m0 = await findMember(SHOP, 71);
-    await prisma.member.update({
-      where: { id: m0.id },
-      data: { lastOrderAt: new Date(Date.now() - 400 * DAY), tierAchievedAt: new Date(Date.now() - 400 * DAY) },
-    });
-    await prisma.ledgerEntry.updateMany({ where: { memberId: m0.id }, data: { createdAt: new Date(Date.now() - 400 * DAY) } });
-    await downgradeInactive(SHOP);
+    const gold = await prisma.tier.findFirst({ where: { shop: SHOP, name: "Gold" } });
+    expect(m0.tierId).toBe(gold.id);
+    // 13 months later the order no longer counts.
+    await refreshTiers(SHOP, new Date(Date.now() + 400 * DAY));
     const m = await findMember(SHOP, 71);
     const silver = await prisma.tier.findFirst({ where: { shop: SHOP, name: "Silver" } });
     expect(m.tierId).toBe(silver.id);
-    // First sign-in adds the 100-point welcome bonus, which counts toward the next tier.
+    expect(m.tierSpend).toBe(0);
     const state = await buildState(SHOP, 71);
-    expect(state.member.tier.name).toBe("Silver");
     expect(state.member.nextTier.name).toBe("Gold");
-    expect(state.member.nextTier.pointsNeeded).toBe(4900);
+    expect(state.member.nextTier.amountNeeded).toBe(5000);
+  });
+
+  it("drops a tier after a refund once the daily refresh runs", async () => {
+    await legacy();
+    const order = await earn(72, 5500);
+    await handleRefund(SHOP, { id: 9072, order_id: order.id, refund_line_items: [{ subtotal: "1000.00", line_item: {} }] }, fakeAdmin);
+    await refreshTiers(SHOP);
+    const m = await findMember(SHOP, 72);
+    expect(m.tierSpend).toBe(4500);
+    expect((await prisma.tier.findUnique({ where: { id: m.tierId } })).name).toBe("Silver");
   });
 });
 
 describe("storefront state", () => {
   it("returns guest info without a customer and member info with one", async () => {
-    await live();
+    await legacy();
     const guest = await buildState(SHOP, null);
     expect(guest.member).toBeNull();
     expect(guest.rewards).toHaveLength(4);
     expect(guest.program.tiers.map((t) => t.name)).toEqual(["Silver", "Gold", "Platinum"]);
 
     await earn(81, 2600);
+    await updateSettings(SHOP, { minRedeemSubtotal: 0 });
     const state = await buildState(SHOP, 81, { cartSubtotal: 3000 });
     expect(state.member.balance).toBe(2700); // 2600 + 100 welcome bonus
     expect(state.member.worthLabel).toBe("₹270");
@@ -316,5 +361,77 @@ describe("storefront state", () => {
     expect(state.rewards.find((r) => r.points === 2500).canRedeem).toBe(true);
     expect(state.rewards.find((r) => r.points === 5000).pointsNeeded).toBe(2300);
     expect(state.history[0].label).toBeTruthy();
+  });
+});
+
+describe("coins program (live defaults)", () => {
+  it("earns 3% back in coins, 1 coin = ₹1", async () => {
+    await live();
+    await earn(101, 1999);
+    const m = await findMember(SHOP, 101);
+    expect(m.balance).toBe(59);
+    const state = await buildState(SHOP, 101);
+    expect(state.member.worthLabel).toBe("₹69"); // 59 + 10 welcome coins
+    expect(state.earn.find((e) => e.key === "purchase").detail).toBe("3% back in coins on every order");
+    expect(state.rewards).toHaveLength(0);
+  });
+
+  it("turns coins into store credit from a cart of ₹1,499+ with a 20% cap", async () => {
+    await live();
+    await earn(102, 20000); // 600 coins
+    const member = await findMember(SHOP, 102);
+    expect(member.balance).toBe(600);
+
+    await expect(redeem(SHOP, member.id, { points: 100, kind: "STORE_CREDIT" }, fakeAdmin)).rejects.toThrow(/from your cart/);
+    await expect(redeem(SHOP, member.id, { points: 100, kind: "STORE_CREDIT", cartSubtotal: 1200 }, fakeAdmin)).rejects.toThrow(/₹1,499 or more/);
+    await expect(redeem(SHOP, member.id, { points: 400, kind: "STORE_CREDIT", cartSubtotal: 1500 }, fakeAdmin)).rejects.toThrow(/up to 300 coins/);
+
+    const state = await buildState(SHOP, 102, { cartSubtotal: 1200 });
+    expect(state.member.slider).toEqual({ max: 0, cartShortBy: 299 });
+
+    const res = await redeem(SHOP, member.id, { points: 300, kind: "STORE_CREDIT", cartSubtotal: 1500 }, fakeAdmin);
+    expect(res.storeCredit).toEqual({ amount: 300, currency: "INR" });
+    expect(res.checkoutUrl).toBe("/checkout");
+    const call = fakeAdmin.calls.find((c) => c.name === "ClubStoreCredit");
+    expect(call.variables.input.creditAmount).toEqual({ amount: "300", currencyCode: "INR" });
+    const m = await assertInvariant(prisma, member.id, expect);
+    expect(m.balance).toBe(310); // 600 + 10 welcome coins on first sign-in - 300
+  });
+
+  it("moves to Gold at ₹5,000 spend and pays 1.25x", async () => {
+    await live();
+    await earn(103, 5000);
+    const m = await findMember(SHOP, 103);
+    expect((await prisma.tier.findUnique({ where: { id: m.tierId } })).name).toBe("Gold");
+    await handleOrderPaid(SHOP, orderPayload({ customerId: 103, amount: 1000 }), fakeAdmin);
+    expect((await findMember(SHOP, 103)).pending).toBe(37); // 1000 × 3% × 1.25 = 37.5
+  });
+
+  it("pays the streak bonus on every 3rd order in 90 days", async () => {
+    await live();
+    await earn(104, 1000);
+    await earn(104, 1000);
+    expect((await findMember(SHOP, 104)).balance).toBe(60);
+    await earn(104, 1000);
+    const m = await assertInvariant(prisma, (await findMember(SHOP, 104)).id, expect);
+    expect(m.balance).toBe(90 + 50);
+    expect(await prisma.ledgerEntry.count({ where: { memberId: m.id, type: "STREAK" } })).toBe(1);
+  });
+
+  it("expires coins after 90 days and reminds at 30 and 7 days", async () => {
+    await live();
+    await earn(105, 2000);
+    const m0 = await findMember(SHOP, 105);
+    const credit = await prisma.ledgerEntry.findFirst({ where: { memberId: m0.id, type: "PURCHASE" } });
+    const daysToExpiry = Math.round((credit.expiresAt - Date.now()) / DAY);
+    expect(daysToExpiry).toBe(90);
+    fakeAdmin.calls.length = 0;
+    const flows = () => fakeAdmin.calls.filter((c) => c.name === "ClubFlow" && c.variables.handle === "club-points-expiring").length;
+    await warnExpiringPoints(SHOP, addDays(credit.expiresAt, -30));
+    expect(flows()).toBe(1);
+    await warnExpiringPoints(SHOP, addDays(credit.expiresAt, -7));
+    expect(flows()).toBe(2);
+    await expirePoints(SHOP, addDays(credit.expiresAt, 1));
+    expect((await assertInvariant(prisma, m0.id, expect)).balance).toBe(0);
   });
 });

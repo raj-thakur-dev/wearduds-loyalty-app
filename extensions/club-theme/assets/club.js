@@ -44,7 +44,9 @@
       return new Intl.NumberFormat("en-IN", { style: "currency", currency: (state && state.program.currency) || "INR", maximumFractionDigits: v % 1 === 0 ? 0 : 2 }).format(v);
     } catch (e) { return "₹" + v; }
   }
-  function worth(points) { return money(Number(points || 0) * ((state && state.program.pointValue) || 0.1)); }
+  function worth(points) { return money(Number(points || 0) * ((state && state.program.pointValue) || 1)); }
+  function coins(n) { return pts(n) + " " + (Number(n) === 1 ? "coin" : "coins"); }
+  function windowText(s) { var d = s.program.tierWindowDays; return !d ? "so far" : d === 365 ? "in the last 12 months" : "in the last " + d + " days"; }
   function date(iso) { return iso ? new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : ""; }
   function plural(n, one, many) { return n === 1 ? one : many; }
   function icon(path, label) {
@@ -147,7 +149,7 @@
       append(label, [
         h("div", { class: "wdc-label__top" }, h("span", { class: "wdc-label__name", text: s.program.name })),
         h("p", { class: "wdc-label__guest-title", text: s.program.widget.guestHeadline || "Get paid to get dressed." }),
-        h("p", { style: { margin: "0 0 14px" }, text: signup ? "Join free and start with " + pts(signup.points) + " points (" + worth(signup.points) + " off)." : s.program.widget.guestBody }),
+        h("p", { style: { margin: "0 0 14px" }, text: s.program.widget.guestBody || (signup ? "Join free and start with " + coins(signup.points) + "." : "") }),
         h("div", { class: "wdc-page__actions" },
           h("a", { class: "wdc-btn", href: cfg.registerUrl, text: "Join the club" }),
           h("a", { class: "wdc-btn wdc-btn--ghost", href: cfg.loginUrl, text: "Sign in" }))
@@ -161,7 +163,7 @@
         tier ? h("span", { class: "wdc-label__tier", style: { "--tier": tier.color } }, h("i"), tier.name) : null),
       h("p", { class: "wdc-label__worth", "aria-label": m.worthLabel + " to spend" }, m.worthLabel),
       h("p", { class: "wdc-label__points", style: { margin: 0 } },
-        pts(m.balance) + " " + plural(m.balance, "point", "points") + " to spend",
+        coins(m.balance) + " to spend (1 coin = ₹1)",
         m.pending ? h("span", { class: "wdc-label__pending", text: pts(m.pending) + " more unlock after your order is delivered" }) : null)
     ]);
     return label;
@@ -174,7 +176,7 @@
     requestAnimationFrame(function () { fill.style.width = m.tierProgress + "%"; });
     return h("div", { class: "wdc-progress" },
       h("div", { class: "wdc-progress__bar", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(m.tierProgress), "aria-label": "Progress to " + m.nextTier.name }, fill),
-      h("p", { class: "wdc-progress__text", text: pts(m.nextTier.pointsNeeded) + " points to " + m.nextTier.name + (m.nextTier.multiplier > 1 ? ", where every order earns " + m.nextTier.multiplier + "x" : "") }));
+      h("p", { class: "wdc-progress__text", text: money(m.tierSpend || 0) + " spent " + windowText(s) + ". Spend " + money(m.nextTier.amountNeeded != null ? m.nextTier.amountNeeded : m.nextTier.pointsNeeded) + " more for " + m.nextTier.name + (m.nextTier.multiplier > 1 ? ", where every order earns " + m.nextTier.multiplier + "x coins" : "") + "." }));
   }
 
   function alertBox(kind, text) { return h("div", { class: "wdc-alert wdc-alert--" + kind, role: kind === "error" ? "alert" : "status", text: text }); }
@@ -188,7 +190,7 @@
       h("span", { class: "wdc-code__meta", text: c.label + (c.minSubtotal ? " on orders over " + money(c.minSubtotal) : "") + (c.expiresAt ? ". Use by " + date(c.expiresAt) : "") }));
   }
 
-  /* Rewards list with an inline "spend points?" confirmation. */
+  /* Code rewards (if any) with an inline "spend coins?" confirmation, then how to spend coins. */
   function rewardsList(s, ctx) {
     var wrap = h("div");
     var issued = h("div");
@@ -199,7 +201,7 @@
     var list = h("ul", { class: "wdc-list", "aria-label": "Rewards" });
     s.rewards.forEach(function (r) {
       var row = h("li", { class: "wdc-row wdc-reward" + (r.canRedeem ? "" : " wdc-reward--locked") });
-      var meta = pts(r.points) + " points" + (r.minSubtotal ? ", orders over " + money(r.minSubtotal) : "") + (r.minTier ? ", " + r.minTier + " members" : "");
+      var meta = coins(r.points) + (r.minSubtotal ? ", orders over " + money(r.minSubtotal) : "") + (r.minTier ? ", " + r.minTier + " members" : "");
       append(row, h("div", null, h("div", { class: "wdc-reward__value", text: r.title }), h("div", { class: "wdc-row__meta", text: meta })));
       if (!s.member) {
         append(row, h("span", { class: "wdc-row__meta", text: "Sign in" }));
@@ -210,9 +212,9 @@
         btn.addEventListener("click", function () {
           if (row.querySelector(".wdc-confirm")) return;
           btn.setAttribute("aria-expanded", "true");
-          var yes = h("button", { type: "button", class: "wdc-btn wdc-btn--small wdc-btn--accent", text: "Spend " + pts(r.points) + " points" });
+          var yes = h("button", { type: "button", class: "wdc-btn wdc-btn--small wdc-btn--accent", text: "Spend " + coins(r.points) });
           var no = h("button", { type: "button", class: "wdc-link", text: "Keep them" });
-          var box = h("div", { class: "wdc-confirm" }, h("p", { text: "Swap " + pts(r.points) + " points for " + r.title + "? You'll get a code for your next order." }), yes, no);
+          var box = h("div", { class: "wdc-confirm" }, h("p", { text: "Swap " + coins(r.points) + " for " + r.title + "? You'll get a code for your next order." }), yes, no);
           no.addEventListener("click", function () { box.remove(); btn.setAttribute("aria-expanded", "false"); btn.focus(); });
           yes.addEventListener("click", function () {
             yes.disabled = true; yes.textContent = "Getting your code";
@@ -222,7 +224,7 @@
               load(true);
               if (ctx && ctx.onRedeemed) ctx.onRedeemed(res);
             }, function (err) {
-              yes.disabled = false; yes.textContent = "Spend " + pts(r.points) + " points";
+              yes.disabled = false; yes.textContent = "Spend " + coins(r.points);
               var old = box.querySelector(".wdc-alert"); if (old) old.remove();
               box.appendChild(alertBox("error", err.message));
             });
@@ -234,9 +236,21 @@
       }
       list.appendChild(row);
     });
-    append(wrap, list);
-    if (s.member && s.program.maxRedeemPercent < 100) append(wrap, h("p", { class: "wdc-note", text: "Points can pay for up to " + s.program.maxRedeemPercent + "% of an order. 100 points = " + worth(100) + "." }));
+    if (s.rewards.length) append(wrap, list);
+    append(wrap, howToSpend(s));
     return wrap;
+  }
+
+  /* How coins are spent: from the cart, as store credit (or a code if store credit is off). */
+  function howToSpend(s) {
+    var p = s.program;
+    var steps = p.storeCredit
+      ? "Add what you like to your cart and tap Use coins. They go to your account as store credit, which you apply in one tap at checkout."
+      : "Add what you like to your cart and tap Use coins. We'll apply them as a discount on that order.";
+    return h("div", { class: "wdc-confirm", style: { marginTop: "12px" } },
+      h("p", { style: { margin: "0 0 6px" }, text: steps }),
+      h("p", { class: "wdc-note", style: { margin: 0 }, text: "1 coin = ₹1. Coins work on orders of " + money(p.minRedeemSubtotal) + " or more and can pay for up to " + p.maxRedeemPercent + "% of an order." }),
+      s.member ? h("a", { class: "wdc-btn wdc-btn--small", style: { marginTop: "10px" }, href: "/cart", text: "Go to cart" }) : null);
   }
 
   function birthdayForm() {
@@ -260,7 +274,7 @@
   function referralBox(s) {
     var link = location.origin + "/?ref=" + encodeURIComponent(s.member.referral.code);
     var friend = s.earn.find(function (e) { return e.key === "referral"; });
-    var bonus = friend && friend.friendPoints ? " and " + pts(friend.friendPoints) + " points (" + worth(friend.friendPoints) + " off)" : "";
+    var bonus = friend && friend.friendPoints ? " and get " + worth(friend.friendPoints) + " in Club Coins" : "";
     var msg = "Join the " + s.program.name + " with my link" + bonus + ": " + link;
     var copyBtn = h("button", { type: "button", class: "wdc-btn wdc-btn--small wdc-btn--ghost", text: "Copy link" });
     copyBtn.addEventListener("click", function () { copy(link, copyBtn); });
@@ -312,16 +326,16 @@
   }
 
   function activityList(s) {
-    if (!s.member) return h("p", { class: "wdc-note", text: "Sign in to see your points history." });
+    if (!s.member) return h("p", { class: "wdc-note", text: "Sign in to see your coins history." });
     if (!s.history.length) return h("p", { class: "wdc-note", text: "Nothing yet. Your first order starts the count." });
-    var list = h("ul", { class: "wdc-list", "aria-label": "Points history" });
+    var list = h("ul", { class: "wdc-list", "aria-label": "Coins history" });
     s.history.forEach(function (e) {
       list.appendChild(h("li", { class: "wdc-row" },
         h("div", null, h("div", { class: "wdc-row__title", text: e.description }), h("div", { class: "wdc-row__meta", text: date(e.date) + (e.pending ? ", unlocks after delivery" : "") })),
         h("span", { class: "wdc-row__pts" + (e.points < 0 ? " wdc-row__pts--minus" : ""), text: (e.points > 0 ? "+" : "") + pts(e.points) })));
     });
     var wrap = h("div", null, list);
-    if (s.member.nextExpiry) append(wrap, h("p", { class: "wdc-note", text: pts(s.member.nextExpiry.points) + " points expire on " + date(s.member.nextExpiry.date) + ". Use them before then." }));
+    if (s.member.nextExpiry) append(wrap, h("p", { class: "wdc-note", text: coins(s.member.nextExpiry.points) + " expire on " + date(s.member.nextExpiry.date) + ". Use them before then." }));
     return wrap;
   }
 
@@ -439,9 +453,9 @@
     var hero = h("div", { class: "wdc-page__hero" },
       h("div", null,
         h("h1", { class: "wdc-page__headline", text: root.dataset.headline || s.program.name }),
-        h("p", { class: "wdc-page__lede", text: root.dataset.lede || ("Every ₹1 you spend earns " + (s.program.pointsPerCurrency === 1 ? "a point" : s.program.pointsPerCurrency + " points") + ". 100 points take " + worth(100) + " off your next order. The more you wear, the higher your tier and the faster you earn.") }),
+        h("p", { class: "wdc-page__lede", text: root.dataset.lede || ("Get " + s.program.earnPercent + "% back in Club Coins on every order. 1 coin = ₹1, spent straight from your cart. Spend more in a year, move up a tier, earn faster.") }),
         m ? h("div", { class: "wdc-page__actions" },
-          h("button", { type: "button", class: "wdc-btn", onclick: function () { open("rewards"); }, text: "Use my points" }),
+          h("a", { class: "wdc-btn", href: "/cart", text: "Use my coins" }),
           h("button", { type: "button", class: "wdc-btn wdc-btn--ghost", onclick: function () { open("earn"); }, text: "Earn more" }))
           : h("div", { class: "wdc-page__actions" }, h("a", { class: "wdc-btn", href: cfg.registerUrl, text: "Join the club" }), h("a", { class: "wdc-btn wdc-btn--ghost", href: cfg.loginUrl, text: "Sign in" }))),
       h("div", null, wovenLabel(s, { className: "wdc-page__label" }), tierProgress(s)));
@@ -452,15 +466,15 @@
     s.rewards.forEach(function (r) {
       rewards.appendChild(h("div", { class: "wdc-tag" + (r.canRedeem ? "" : " wdc-tag--locked") },
         h("span", { class: "wdc-tag__value", text: r.title }),
-        h("span", { class: "wdc-tag__meta", text: pts(r.points) + " points" }),
+        h("span", { class: "wdc-tag__meta", text: coins(r.points) }),
         r.minSubtotal ? h("span", { class: "wdc-tag__meta", text: "Orders over " + money(r.minSubtotal) }) : null,
         m && !r.canRedeem ? h("span", { class: "wdc-tag__meta", text: pts(r.pointsNeeded) + " to go" }) : null));
     });
     var redeemCol = h("section", { "aria-labelledby": "wdc-redeem-h" },
       h("h2", { id: "wdc-redeem-h", text: "Spend" }),
-      h("p", { class: "wdc-page__sub", text: "Swap points for money off. Or choose exactly how many to use in your cart." }),
-      rewards,
-      m ? h("div", { style: { marginTop: "16px" } }, h("button", { type: "button", class: "wdc-btn", onclick: function () { open("rewards"); }, text: "Get a code" })) : null);
+      h("p", { class: "wdc-page__sub", text: "Every coin is ₹1 off. Choose how many to use in your cart." }),
+      s.rewards.length ? rewards : null,
+      howToSpend(s));
     append(root, h("div", { class: "wdc-page__grid" }, earnCol, redeemCol));
 
     // Tiers: a real comparison table, because it's comparison data.
@@ -470,14 +484,14 @@
     var table = h("table", { class: "wdc-tiers" },
       h("thead", null, h("tr", null, h("td"), tiers.map(function (t) { return h("th", { scope: "col", class: t.id === current ? "is-current" : null }, t.name, t.id === current ? h("span", { class: "wdc-sr", text: " (your tier)" }) : null); }))),
       h("tbody", null,
-        h("tr", null, h("th", { scope: "row", text: "Lifetime points" }), tiers.map(function (t) { return h("td", { class: t.id === current ? "is-current" : null, text: t.threshold ? pts(t.threshold) + "+" : "Start here" }); })),
-        h("tr", null, h("th", { scope: "row", text: "Points per ₹1" }), tiers.map(function (t) { return h("td", { class: t.id === current ? "is-current" : null, text: t.multiplier + "x" }); })),
+        h("tr", null, h("th", { scope: "row", text: "Spend " + windowText(s).replace(/^in /, "") }), tiers.map(function (t) { return h("td", { class: t.id === current ? "is-current" : null, text: t.threshold ? money(t.threshold) + "+" : "Start here" }); })),
+        h("tr", null, h("th", { scope: "row", text: "Back in coins" }), tiers.map(function (t) { return h("td", { class: t.id === current ? "is-current" : null, text: Math.round(s.program.earnPercent * t.multiplier * 100) / 100 + "%" }); })),
         Array.from({ length: perkRows }, function (_, i) {
           return h("tr", null, h("th", { scope: "row", text: i === 0 ? "Perks" : "" }), tiers.map(function (t) { return h("td", { class: t.id === current ? "is-current" : null, text: t.perks[i] || "" }); }));
         })));
     append(root, h("section", { style: { marginTop: "56px" }, "aria-labelledby": "wdc-tiers-h" },
       h("h2", { id: "wdc-tiers-h", text: "Tiers" }),
-      h("p", { class: "wdc-page__sub", text: "Based on every point you've ever earned, so spending points never drops your tier." }),
+      h("p", { class: "wdc-page__sub", text: "Based on what you spend " + windowText(s) + ". Orders count once their return window has passed." }),
       h("div", { class: "wdc-tiers-wrap" }, table)));
 
     if (m && s.history && s.history.length) {
@@ -502,25 +516,28 @@
   function renderCart(root) {
     var s = state;
     root.replaceChildren();
+    var p = s.program;
     var box = h("div", { class: "wdc-cart" });
-    var rate = s.program.pointsPerCurrency * ((s.member && s.member.tier && s.member.tier.multiplier) || 1);
-    var earnNote = lastCartSubtotal ? "This order earns about " + pts(Math.floor(lastCartSubtotal * rate)) + " points once delivered." : null;
+    var rate = p.pointsPerCurrency * ((s.member && s.member.tier && s.member.tier.multiplier) || 1);
+    var earned = lastCartSubtotal ? Math.floor(lastCartSubtotal * rate + 1e-9) : 0;
+    var earnNote = earned ? "This order earns " + coins(earned) + " (" + worth(earned) + ") once delivered." : null;
     if (!s.member) {
-      append(box, [h("div", { class: "wdc-cart__title", text: "Pay with points" }),
-        h("p", { class: "wdc-note", style: { margin: "6px 0 12px" } }, "Members save on every order. ", earnNote),
-        h("a", { class: "wdc-btn wdc-btn--small", href: cfg.loginUrl, text: "Sign in to use points" })]);
+      append(box, [h("div", { class: "wdc-cart__title", text: "Use your Club Coins" }),
+        h("p", { class: "wdc-note", style: { margin: "6px 0 12px" } }, "Members get " + p.earnPercent + "% back in coins. ", earnNote),
+        h("a", { class: "wdc-btn wdc-btn--small", href: cfg.loginUrl, text: "Sign in to use coins" })]);
       root.appendChild(box); return;
     }
     var m = s.member;
-    var slider = s.program.slider;
-    append(box, h("div", { class: "wdc-cart__head" }, h("span", { class: "wdc-cart__title", text: "Pay with points" }), h("span", { class: "wdc-row__meta", text: pts(m.balance) + " points (" + m.worthLabel + ")" })));
+    var slider = p.slider;
+    append(box, h("div", { class: "wdc-cart__head" }, h("span", { class: "wdc-cart__title", text: "Use your Club Coins" }), h("span", { class: "wdc-row__meta", text: coins(m.balance) + " (" + m.worthLabel + ")" })));
     if (!slider || !m.slider) { append(box, h("p", { class: "wdc-note", text: earnNote })); root.appendChild(box); return; }
     var max = m.slider.max;
     if (max < slider.min) {
-      var short = slider.min - m.balance;
-      append(box, h("p", { class: "wdc-note", style: { marginTop: "8px" }, text: short > 0
-        ? "You need " + pts(short) + " more points to start using them."
-        : "Points can cover up to " + s.program.maxRedeemPercent + "% of an order. Add a little more to use them." }));
+      var msg;
+      if (m.slider.cartShortBy > 0) msg = "Add " + money(m.slider.cartShortBy) + " more to use your coins. They work on orders of " + money(p.minRedeemSubtotal) + " or more.";
+      else if (m.balance < slider.min) msg = m.balance > 0 ? "You need " + coins(slider.min - m.balance) + " more to start using them." : "No coins to use yet. This order starts your balance.";
+      else msg = "Coins can pay for up to " + p.maxRedeemPercent + "% of an order. Add a little more to use them.";
+      append(box, h("p", { class: "wdc-note", style: { marginTop: "8px" }, text: msg }));
       if (earnNote) append(box, h("p", { class: "wdc-note", text: earnNote }));
       root.appendChild(box); return;
     }
@@ -528,16 +545,29 @@
     var value = h("div", { class: "wdc-cart__value", "aria-live": "polite" });
     var range = h("input", { type: "range", class: "wdc-range", id: id, min: String(slider.min), max: String(max), step: String(slider.step), value: String(max) });
     var btn = h("button", { type: "button", class: "wdc-btn wdc-btn--accent wdc-btn--block" });
-    function sync() { var p = Number(range.value); value.textContent = worth(p) + " off"; btn.textContent = "Use " + pts(p) + " points"; range.setAttribute("aria-valuetext", pts(p) + " points, " + worth(p) + " off"); }
+    function sync() { var n = Number(range.value); value.textContent = worth(n) + " off"; btn.textContent = "Use " + coins(n); range.setAttribute("aria-valuetext", coins(n) + ", " + worth(n) + " off"); }
     range.addEventListener("input", sync); sync();
     var err = h("div");
     btn.addEventListener("click", function () {
-      btn.disabled = true; btn.textContent = "Applying";
-      act("redeem", { points: Number(range.value) }).then(function (res) { window.location.href = res.applyUrl; }, function (e) { btn.disabled = false; sync(); err.replaceChildren(alertBox("error", e.message)); });
+      btn.disabled = true; btn.textContent = "Adding";
+      var body = { points: Number(range.value), cartSubtotal: lastCartSubtotal };
+      if (p.storeCredit) body.kind = "STORE_CREDIT";
+      act("redeem", body).then(function (res) {
+        if (res.storeCredit) {
+          box.replaceChildren(
+            alertBox("ok", worth(res.storeCredit.amount) + " added to your account as store credit. At checkout, tap Apply store credit."),
+            h("a", { class: "wdc-btn wdc-btn--accent wdc-btn--block", style: { marginTop: "10px" }, href: res.checkoutUrl || "/checkout", text: "Go to checkout" }));
+          load(true);
+          return;
+        }
+        window.location.href = res.applyUrl;
+      }, function (e) { btn.disabled = false; sync(); err.replaceChildren(alertBox("error", e.message)); });
     });
-    append(box, [value, h("label", { for: id, class: "wdc-sr", text: "Points to use" }), range,
+    append(box, [value, h("label", { for: id, class: "wdc-sr", text: "Coins to use" }), range,
       h("div", { class: "wdc-row__meta", style: { display: "flex", justifyContent: "space-between", marginBottom: "12px" } }, h("span", { text: pts(slider.min) }), h("span", { text: pts(max) + " max" })),
-      btn, err, earnNote ? h("p", { class: "wdc-note", text: earnNote }) : null]);
+      btn, err,
+      h("p", { class: "wdc-note", text: "Up to " + p.maxRedeemPercent + "% of this order. " + (p.storeCredit ? "Coins become store credit you apply at checkout." : "") }),
+      earnNote ? h("p", { class: "wdc-note", text: earnNote }) : null]);
     root.appendChild(box);
   }
 
@@ -545,7 +575,7 @@
   function renderAccount(root) {
     root.replaceChildren(wovenLabel(state), tierProgress(state) || "",
       h("div", { class: "wdc-page__actions", style: { marginTop: "14px" } },
-        h("button", { type: "button", class: "wdc-btn", onclick: function () { open("rewards"); }, text: "Use my points" }),
+        h("a", { class: "wdc-btn", href: "/cart", text: "Use my coins" }),
         h("a", { class: "wdc-btn wdc-btn--ghost", href: (state.program.widget && state.program.widget.clubPageUrl) || cfg.clubPageUrl, text: "How it works" })));
   }
 

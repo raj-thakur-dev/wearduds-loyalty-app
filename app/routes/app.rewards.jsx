@@ -21,6 +21,8 @@ export async function loader({ request }) {
     redeem: {
       pointValue: s.pointValue,
       maxRedeemPercent: s.maxRedeemPercent,
+      minRedeemSubtotal: s.minRedeemSubtotal,
+      tierWindowDays: s.downgradeAfterDays,
       sliderEnabled: s.sliderEnabled,
       sliderStep: s.sliderStep,
       sliderMinPoints: s.sliderMinPoints,
@@ -53,7 +55,7 @@ function parseReward(form, maxPercent) {
   const minTierId = form.get("minTierId") || null;
   if (!title || title.length > 60) errors.title = "Give the reward a short name.";
   if (!["FIXED_AMOUNT", "PERCENTAGE", "FREE_SHIPPING"].includes(type)) errors.type = "Pick a reward type.";
-  if (!(pointsCost > 0)) errors.pointsCost = "Points must be above 0.";
+  if (!(pointsCost > 0)) errors.pointsCost = "Coins must be above 0.";
   if (type === "FIXED_AMOUNT" && !(value > 0)) errors.value = "Enter the ₹ amount off.";
   if (type === "PERCENTAGE" && !(value > 0 && value <= maxPercent)) errors.value = `Percentage must be 1 to ${maxPercent} (your max redeem %).`;
   if (minSubtotal !== null && !(minSubtotal >= 0)) errors.minSubtotal = "Minimum order can't be negative.";
@@ -84,6 +86,7 @@ export async function action({ request }) {
       const res = validateSettingsInput({
         pointValue: form.get("pointValue"),
         maxRedeemPercent: form.get("maxRedeemPercent"),
+        minRedeemSubtotal: form.get("minRedeemSubtotal"),
         sliderEnabled: form.get("sliderEnabled") === "on",
         sliderStep: form.get("sliderStep"),
         sliderMinPoints: form.get("sliderMinPoints"),
@@ -99,6 +102,13 @@ export async function action({ request }) {
       await updateSettings(shop, res.data);
       await publish();
       return { toast: "Redemption rules saved" };
+    }
+    case "save-tier-window": {
+      const res = validateSettingsInput({ downgradeAfterDays: form.get("tierWindowDays") });
+      if (res.errors) return { errors: { tierWindowDays: res.errors.downgradeAfterDays } };
+      await updateSettings(shop, res.data);
+      await publish();
+      return { toast: "Tier window saved. Tiers are rechecked every day." };
     }
     case "save-reward": {
       const res = parseReward(form, settings.maxRedeemPercent);
@@ -152,7 +162,7 @@ export async function action({ request }) {
       if (id) await prisma.tier.updateMany({ where: { id: String(id), shop }, data });
       else await prisma.tier.create({ data: { ...data, shop, sortOrder: tiers.length } });
       await publish();
-      return { toast: "Tier saved. Members move up as they next earn points." };
+      return { toast: "Tier saved. Members are moved when their spend is next checked (daily)." };
     }
     case "delete-tier": {
       const id = String(form.get("id"));
@@ -192,7 +202,7 @@ export default function Rewards() {
         <s-table>
           <s-table-header-row>
             <s-table-header listSlot="primary">Reward</s-table-header>
-            <s-table-header format="numeric">Points</s-table-header>
+            <s-table-header format="numeric">Coins</s-table-header>
             <s-table-header>Min. order</s-table-header>
             <s-table-header>Who</s-table-header>
             <s-table-header format="numeric">Redeemed</s-table-header>
@@ -242,16 +252,17 @@ export default function Rewards() {
           <input type="hidden" name="intent" value="save-redeem" />
           <s-stack gap="base">
             <s-grid gridTemplateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap="base">
-              <s-number-field name="pointValue" label="Value of 1 point (₹)" value={String(redeem.pointValue)} step="0.01" min="0.001" details={`100 points = ${per100}`} />
-              <s-number-field name="maxRedeemPercent" label="Max % of an order paid with points" value={String(redeem.maxRedeemPercent)} min="1" max="100" suffix="%" details="Sets each reward's minimum order" />
+              <s-number-field name="pointValue" label="Value of 1 coin (₹)" value={String(redeem.pointValue)} step="0.01" min="0.001" details={`100 coins = ${per100}`} />
+              <s-number-field name="maxRedeemPercent" label="Max % of an order paid with coins" value={String(redeem.maxRedeemPercent)} min="1" max="100" suffix="%" details="Caps how many coins a cart can use" />
+              <s-number-field name="minRedeemSubtotal" label="Minimum cart to use coins (₹)" value={String(redeem.minRedeemSubtotal)} min="0" details="Coins can't be used below this" />
               <s-number-field name="codeExpiryDays" label="Codes expire after (days)" value={String(redeem.codeExpiryDays)} min="1" />
               <s-text-field name="codePrefix" label="Code prefix" value={redeem.codePrefix} details="e.g. WD-7K3PQ2XA" />
             </s-grid>
             <s-divider />
-            <s-switch name="sliderEnabled" label="Let members choose how many points to use in the cart" checked={redeem.sliderEnabled || undefined} />
+            <s-switch name="sliderEnabled" label="Let members choose how many coins to use in the cart" checked={redeem.sliderEnabled || undefined} />
             <s-grid gridTemplateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap="base">
-              <s-number-field name="sliderStep" label="Slider step (points)" value={String(redeem.sliderStep)} min="1" />
-              <s-number-field name="sliderMinPoints" label="Minimum points per redemption" value={String(redeem.sliderMinPoints)} min="0" />
+              <s-number-field name="sliderStep" label="Slider step (coins)" value={String(redeem.sliderStep)} min="1" />
+              <s-number-field name="sliderMinPoints" label="Minimum coins per redemption" value={String(redeem.sliderMinPoints)} min="0" />
             </s-grid>
             <s-divider />
             <s-text type="strong">Reward codes combine with</s-text>
@@ -261,11 +272,11 @@ export default function Rewards() {
               <s-checkbox name="combinesWithShipping" label="Shipping discounts" checked={redeem.combinesWithShipping || undefined} />
             </s-stack>
             <s-divider />
-            <s-switch name="restorePointsOnCancel" label="Give points back if an order using a reward is cancelled" checked={redeem.restorePointsOnCancel || undefined} />
+            <s-switch name="restorePointsOnCancel" label="Give coins back if an order using a reward is cancelled" checked={redeem.restorePointsOnCancel || undefined} />
             <s-switch
               name="storeCreditEnabled"
-              label="Offer Shopify store credit as a redemption option"
-              details="Only works with Shopify checkout and new customer accounts. Leave off if you use GoKwik, Shopflo or Razorpay Magic Checkout."
+              label="Use coins as Shopify store credit"
+              details="In the cart, members turn coins into store credit and apply it in one tap at checkout. Needs Shopify checkout and new customer accounts; turn off if you use GoKwik, Shopflo or Razorpay Magic Checkout (coins then become discount codes)."
               checked={redeem.storeCreditEnabled || undefined}
             />
             <s-stack direction="inline" justifyContent="end">
@@ -280,9 +291,18 @@ export default function Rewards() {
       <s-section heading="Tiers">
         <s-stack gap="base">
           <s-paragraph color="subdued">
-            Tiers are based on all the points a member has ever earned, so spending points never drops them. After a year without an order a member
-            drops to the tier their last year's points earn.
+            Tiers are based on what a member spent (after discounts and refunds) in the tier window. Orders count once their return window has
+            passed. Tiers are rechecked every day, so a member moves down when older orders fall out of the window.
           </s-paragraph>
+          <Form method="post">
+            <input type="hidden" name="intent" value="save-tier-window" />
+            <s-stack direction="inline" gap="base" alignItems="end">
+              <s-number-field name="tierWindowDays" label="Count spend over the last" value={String(redeem.tierWindowDays)} min="0" max="3650" suffix="days" details="365 = rolling 12 months. 0 = all time." />
+              <s-button type="submit" loading={busy || undefined}>
+                Save window
+              </s-button>
+            </s-stack>
+          </Form>
           {tiers.map((t) => (
             <TierForm key={t.id} tier={t} busy={busy} />
           ))}
@@ -322,7 +342,7 @@ function RewardModal({ id, reward, tiers, busy }) {
             <s-option value="FREE_SHIPPING">Free shipping</s-option>
           </s-select>
           <s-grid gridTemplateColumns="1fr 1fr" gap="base">
-            <s-number-field name="pointsCost" label="Points needed" value={String(r.pointsCost)} min="1" required />
+            <s-number-field name="pointsCost" label="Coins needed" value={String(r.pointsCost)} min="1" required />
             <s-number-field name="value" label="Amount (₹ or %)" value={String(r.value ?? "")} min="0" details="Not used for free shipping" />
           </s-grid>
           <s-number-field
@@ -358,8 +378,8 @@ function TierFields({ tier }) {
     <s-stack gap="base">
       <s-grid gridTemplateColumns="repeat(auto-fit, minmax(150px, 1fr))" gap="base">
         <s-text-field name="name" label="Name" value={tier.name} required />
-        <s-number-field name="threshold" label="Starts at (lifetime points)" value={String(tier.threshold)} min="0" required />
-        <s-number-field name="multiplier" label="Points multiplier" value={String(tier.multiplier)} step="0.05" min="1" max="10" suffix="x" />
+        <s-number-field name="threshold" label="Starts at (₹ spent in window)" value={String(tier.threshold)} min="0" prefix="₹" required />
+        <s-number-field name="multiplier" label="Coins multiplier" value={String(tier.multiplier)} step="0.05" min="1" max="10" suffix="x" />
         <s-color-field name="color" label="Badge colour" value={tier.color} />
       </s-grid>
       <s-text-area name="perks" label="Perks (one per line)" value={(tier.perks || []).join("\n")} rows={4} />

@@ -2,7 +2,7 @@ import { Form, useActionData, useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { adjustPoints } from "../loyalty/actions.server";
-import { LoyaltyError, restoreDebit, setTier, tierPoints, withMemberLock } from "../loyalty/ledger.server";
+import { LoyaltyError, restoreDebit, setTier, withMemberLock } from "../loyalty/ledger.server";
 import { getSettings } from "../loyalty/settings.server";
 import { deleteDiscount } from "../loyalty/shopify-api.server";
 import { runEffects } from "../loyalty/effects.server";
@@ -24,7 +24,7 @@ export async function loader({ request, params }) {
     prisma.loyaltyOrder.findMany({ where: { memberId: member.id }, orderBy: { paidAt: "desc" }, take: 50 }),
     prisma.referral.findMany({ where: { referrerId: member.id }, include: { referee: true }, orderBy: { createdAt: "desc" } }),
   ]);
-  const progress = nextTierProgress(tiers, tierPoints(member));
+  const progress = nextTierProgress(tiers, member.tierSpend || 0);
 
   return {
     member: {
@@ -41,7 +41,8 @@ export async function loader({ request, params }) {
       tierName: member.tier?.name || "—",
       tierLocked: member.tierLocked,
       nextTier: progress.next?.name || null,
-      pointsToNext: progress.pointsNeeded,
+      spendToNext: formatMoney(progress.pointsNeeded, settings.currencyCode),
+      tierSpend: formatMoney(member.tierSpend || 0, settings.currencyCode),
       progress: progress.progress,
       excluded: member.excluded,
       referralCode: member.referralCode,
@@ -113,7 +114,7 @@ export async function action({ request, params }) {
         const sign = form.get("direction") === "remove" ? -1 : 1;
         const points = Math.abs(Number.parseInt(form.get("points"), 10)) * sign;
         await adjustPoints(shop, member.id, { points, reason: form.get("reason"), staff }, admin);
-        return { toast: sign > 0 ? "Points added" : "Points removed" };
+        return { toast: sign > 0 ? "Coins added" : "Coins removed" };
       }
       case "exclude":
       case "include":
@@ -135,7 +136,7 @@ export async function action({ request, params }) {
           await setTier(tx, locked, tier, { lock: true, direction: "manual" }, effects);
         });
         await runEffects(shop, effects, admin);
-        return { toast: tierId === "auto" ? "Tier follows points again" : "Tier set" };
+        return { toast: tierId === "auto" ? "Tier follows spend again" : "Tier set" };
       }
       case "cancel-code": {
         const redemption = await prisma.redemption.findFirst({ where: { id: String(form.get("redemptionId")), memberId: member.id, status: "ISSUED" } });
@@ -148,7 +149,7 @@ export async function action({ request, params }) {
           await tx.redemption.update({ where: { id: redemption.id }, data: { status: "CANCELLED" } });
         });
         await runEffects(shop, effects, admin);
-        return { toast: "Code cancelled and points returned" };
+        return { toast: "Code cancelled and coins returned" };
       }
       default:
         return { error: "Unknown action" };
@@ -174,12 +175,12 @@ export default function MemberDetail() {
         View in Shopify
       </s-button>
       <s-button slot="primary-action" variant="primary" commandFor="adjust-modal" command="--show">
-        Adjust points
+        Adjust coins
       </s-button>
 
       {member.excluded ? (
         <s-banner tone="critical" heading="Excluded from the club">
-          This member can't earn or redeem points. Their balance is kept.
+          This member can't earn or redeem coins. Their balance is kept.
         </s-banner>
       ) : null}
 
@@ -191,19 +192,19 @@ export default function MemberDetail() {
           <Stat
             label="Tier"
             value={member.tierName}
-            help={member.tierLocked ? "Set by staff" : member.nextTier ? `${formatPoints(member.pointsToNext)} to ${member.nextTier}` : "Top tier"}
+            help={member.tierLocked ? "Set by staff" : `${member.tierSpend} spent in window${member.nextTier ? ` · ${member.spendToNext} more for ${member.nextTier}` : ""}`}
           />
         </s-grid>
       </s-section>
 
-      <s-section heading="Points history">
+      <s-section heading="Coins history">
         {ledger.length === 0 ? (
-          <s-paragraph>No points activity yet.</s-paragraph>
+          <s-paragraph>No coins activity yet.</s-paragraph>
         ) : (
           <s-table>
             <s-table-header-row>
               <s-table-header listSlot="primary">Activity</s-table-header>
-              <s-table-header format="numeric">Points</s-table-header>
+              <s-table-header format="numeric">Coins</s-table-header>
               <s-table-header>Status</s-table-header>
               <s-table-header>Expires</s-table-header>
               <s-table-header>By</s-table-header>
@@ -240,7 +241,7 @@ export default function MemberDetail() {
             <s-table-header-row>
               <s-table-header listSlot="primary">Code</s-table-header>
               <s-table-header>Reward</s-table-header>
-              <s-table-header format="numeric">Points</s-table-header>
+              <s-table-header format="numeric">Coins</s-table-header>
               <s-table-header>Status</s-table-header>
               <s-table-header>Expires</s-table-header>
               <s-table-header></s-table-header>
@@ -261,7 +262,7 @@ export default function MemberDetail() {
                         <input type="hidden" name="intent" value="cancel-code" />
                         <input type="hidden" name="redemptionId" value={r.id} />
                         <s-button type="submit" variant="tertiary" tone="critical">
-                          Cancel &amp; refund points
+                          Cancel &amp; refund coins
                         </s-button>
                       </Form>
                     ) : null}
@@ -280,7 +281,7 @@ export default function MemberDetail() {
           <s-table>
             <s-table-header-row>
               <s-table-header listSlot="primary">Order</s-table-header>
-              <s-table-header format="numeric">Points</s-table-header>
+              <s-table-header format="numeric">Coins</s-table-header>
               <s-table-header>Status</s-table-header>
               <s-table-header>Delivered</s-table-header>
               <s-table-header>Unlocks</s-table-header>
@@ -332,7 +333,7 @@ export default function MemberDetail() {
           <input type="hidden" name="intent" value="tier" />
           <s-stack gap="base">
             <s-select name="tierId" label="Tier" value={member.tierLocked ? member.tierId : "auto"} details="Setting a tier locks it until you switch back to automatic.">
-              <s-option value="auto">Automatic (from points)</s-option>
+              <s-option value="auto">Automatic (from spend)</s-option>
               {tiers.map((t) => (
                 <s-option key={t.id} value={t.id}>
                   {t.name}
@@ -374,13 +375,13 @@ export default function MemberDetail() {
 
       <Form method="post">
         <input type="hidden" name="intent" value="adjust" />
-        <s-modal id="adjust-modal" heading="Adjust points">
+        <s-modal id="adjust-modal" heading="Adjust coins">
           <s-stack gap="base">
             <s-select name="direction" label="Action" value="add">
-              <s-option value="add">Add points</s-option>
-              <s-option value="remove">Remove points</s-option>
+              <s-option value="add">Add coins</s-option>
+              <s-option value="remove">Remove coins</s-option>
             </s-select>
-            <s-number-field name="points" label="Points" min="1" required />
+            <s-number-field name="points" label="Coins" min="1" required />
             <s-text-field name="reason" label="Reason" placeholder="e.g. Goodwill for late delivery" required details="The member sees this in their history." />
           </s-stack>
           <s-button slot="primary-action" variant="primary" type="submit" commandFor="adjust-modal" command="--hide">
@@ -397,7 +398,7 @@ export default function MemberDetail() {
         <s-modal id="exclude-modal" heading="Exclude this member?">
           <s-stack gap="base">
             <s-paragraph>
-              They stop earning and can't redeem. Points they already have stay on their account in case you include them again.
+              They stop earning and can't redeem. Coins they already have stay on their account in case you include them again.
             </s-paragraph>
             <s-text-field name="confirm" label="Type EXCLUDE to confirm" autocomplete="off" required />
           </s-stack>

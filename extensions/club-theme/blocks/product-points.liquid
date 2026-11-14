@@ -1,4 +1,4 @@
-{%- comment -%} "Earn X points" on the product page, rendered in Liquid (no network call). {%- endcomment -%}
+{%- comment -%} "Earn X Club Coins" on the product page, rendered in Liquid (no network call). {%- endcomment -%}
 {%- liquid
   assign club = app.metafields.club.config.value
   assign tier_name = customer.metafields.app.tier.value
@@ -9,8 +9,8 @@
     endif
   endfor
   assign variant = product.selected_or_first_available_variant
-  assign rate = club.pointsPerCurrency | default: 1
-  assign points = variant.price | divided_by: 100.0 | times: rate | times: multiplier | floor
+  assign rate = club.pointsPerCurrency | default: 0.03
+  assign points = variant.price | divided_by: 100.0 | times: rate | times: multiplier | plus: 0.000001 | floor
   assign worth = points | times: club.pointValue | default: 0 | round
   assign show = club.live
   if customer.metafields.app.points_lifetime != blank
@@ -22,7 +22,7 @@
     <p class="wdc-product-points">
       <span class="wdc-dot" aria-hidden="true"></span>
       <span>
-        Earn <strong>{{ points | json }} points</strong> with this, worth ₹{{ worth }} off your next order.
+        Earn <strong>{{ points | json }} Club Coins</strong> (₹{{ worth }}) with this, to spend on your next order.
         {%- unless customer %} <a class="wdc-link" href="{{ routes.account_login_url }}">Join the club</a>{% endunless -%}
       </span>
     </p>
@@ -32,7 +32,7 @@
 
 {% schema %}
 {
-  "name": "Points for this product",
+  "name": "Coins for this product",
   "target": "section",
   "settings": [
     { "type": "color", "id": "accent", "label": "Accent colour", "default": "#FF6B1A" }

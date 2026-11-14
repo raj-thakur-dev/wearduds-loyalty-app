@@ -30,11 +30,12 @@ export function roundMoney(n) {
   return Math.round(Number(n || 0) * 100) / 100;
 }
 
-/** Points for an order: eligible spend × rate × tier multiplier, rounded down. */
+/** Coins for an order: eligible spend × rate × tier multiplier, rounded down. */
 export function purchasePoints(eligibleAmount, pointsPerCurrency, multiplier = 1) {
   const amount = Number(eligibleAmount);
   if (!Number.isFinite(amount) || amount <= 0) return 0;
-  return Math.floor(amount * Number(pointsPerCurrency) * Number(multiplier || 1));
+  // Small epsilon so 1000 × 0.03 doesn't floor to 29 through float error.
+  return Math.floor(amount * Number(pointsPerCurrency) * Number(multiplier || 1) + 1e-9);
 }
 
 /**
@@ -63,7 +64,7 @@ export function eligibleAmountFromOrder(order) {
   return Math.max(0, roundMoney(total));
 }
 
-/** Tiers sorted ascending by threshold; returns the highest tier reached. */
+/** Tiers sorted ascending by threshold; returns the highest tier reached for a ₹ spend (or any score). */
 export function tierForPoints(tiers, lifetimePoints) {
   const sorted = [...tiers].sort((a, b) => a.threshold - b.threshold);
   let current = sorted[0] || null;
@@ -176,4 +177,18 @@ export function formatMoney(n, currency = "INR") {
   } catch {
     return `₹${value}`;
   }
+}
+
+/** ₹ net spend that counts toward a tier: credited orders minus refunds. */
+export function netSpend(orders) {
+  return roundMoney(
+    (orders || []).reduce((sum, o) => sum + Math.max(0, Number(o.eligibleAmount || 0) - Number(o.refundedAmount || 0)), 0),
+  );
+}
+
+/** Should the order that just unlocked earn the streak bonus? Every Nth order in the window does. */
+export function streakDue(creditedOrdersInWindow, every) {
+  const n = Number(creditedOrdersInWindow);
+  const e = Math.max(2, Number(every) || 0);
+  return n > 0 && n % e === 0;
 }

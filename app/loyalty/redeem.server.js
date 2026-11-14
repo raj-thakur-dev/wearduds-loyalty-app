@@ -1,7 +1,7 @@
 import prisma from "../db.server";
 import { getSettings } from "./settings.server";
 import { debitPoints, restoreDebit, withMemberLock, LoyaltyError } from "./ledger.server";
-import { addDays, formatMoney, minimumSubtotalFor, pointsToMoney, randomCode, rankOf } from "./math";
+import { addDays, formatMoney, maxSliderPoints, minimumSubtotalFor, pointsToMoney, randomCode, rankOf } from "./math";
 import { createRewardDiscount, creditStoreCredit } from "./shopify-api.server";
 import { runEffects } from "./effects.server";
 
@@ -30,9 +30,9 @@ async function guardRate(memberId) {
 
 /**
  * Resolves what a redemption request is worth. Either a catalogue reward
- * (`rewardId`) or a free amount of points from the cart slider (`points`).
+ * (`rewardId`) or an amount of coins chosen in the cart (`points`, with `cartSubtotal`).
  */
-async function resolveOffer(shop, settings, member, { rewardId, points }) {
+async function resolveOffer(shop, settings, member, { rewardId, points, cartSubtotal }) {
   if (rewardId) {
     const reward = await prisma.reward.findFirst({ where: { id: String(rewardId), shop, active: true } });
     if (!reward) throw new LoyaltyError("NO_REWARD", "That reward isn't available any more.");
@@ -53,7 +53,7 @@ async function resolveOffer(shop, settings, member, { rewardId, points }) {
       label: rewardLabel(reward.type, reward.value, settings.currencyCode),
       minSubtotal:
         reward.type === "FIXED_AMOUNT"
-          ? minimumSubtotalFor(amount, settings.maxRedeemPercent, reward.minSubtotal)
+          ? minimumSubtotalFor(amount, settings.maxRedeemPercent, Math.max(reward.minSubtotal || 0, settings.minRedeemSubtotal || 0))
           : reward.minSubtotal || null,
     };
   }
@@ -62,10 +62,30 @@ async function resolveOffer(shop, settings, member, { rewardId, points }) {
   const p = Number.parseInt(points, 10);
   const step = Math.max(1, settings.sliderStep);
   if (!Number.isFinite(p) || p <= 0 || p % step !== 0) {
-    throw new LoyaltyError("BAD_AMOUNT", `Redeem points in steps of ${step}.`);
+    throw new LoyaltyError("BAD_AMOUNT", `Use coins in steps of ${step}.`);
   }
   if (p < settings.sliderMinPoints) {
-    throw new LoyaltyError("BAD_AMOUNT", `The minimum is ${settings.sliderMinPoints} points.`);
+    throw new LoyaltyError("BAD_AMOUNT", `The minimum is ${settings.sliderMinPoints} coins.`);
+  }
+  // Cart rules: a minimum cart and a max share of it. The cart total comes from
+  // the storefront (the app proxy can't read the cart), so this is checked when
+  // coins are used; Shopify store credit itself has no minimum at checkout.
+  const subtotal = Number(cartSubtotal);
+  if (cartSubtotal !== undefined && cartSubtotal !== null) {
+    if (!Number.isFinite(subtotal) || subtotal <= 0) throw new LoyaltyError("BAD_CART", "Refresh your cart and try again.");
+    if (subtotal < (settings.minRedeemSubtotal || 0)) {
+      throw new LoyaltyError("CART_TOO_SMALL", `Coins work on orders of ${formatMoney(settings.minRedeemSubtotal, settings.currencyCode)} or more.`);
+    }
+    const cap = maxSliderPoints({
+      balance: member.balance,
+      cartSubtotal: subtotal,
+      pointValue: settings.pointValue,
+      maxRedeemPercent: settings.maxRedeemPercent,
+      step,
+    });
+    if (p > cap) {
+      throw new LoyaltyError("OVER_CAP", `You can use up to ${cap.toLocaleString("en-IN")} coins on this cart.`);
+    }
   }
   const value = pointsToMoney(p, settings.pointValue);
   return {
@@ -74,7 +94,7 @@ async function resolveOffer(shop, settings, member, { rewardId, points }) {
     rewardType: "FIXED_AMOUNT",
     value,
     label: rewardLabel("FIXED_AMOUNT", value, settings.currencyCode),
-    minSubtotal: minimumSubtotalFor(value, settings.maxRedeemPercent, 0),
+    minSubtotal: minimumSubtotalFor(value, settings.maxRedeemPercent, settings.minRedeemSubtotal || 0),
   };
 }
 
@@ -90,12 +110,15 @@ export async function redeem(shop, customerMemberId, request, admin) {
 
   const asStoreCredit = request.kind === "STORE_CREDIT";
   if (asStoreCredit && !settings.storeCreditEnabled) {
-    throw new LoyaltyError("STORE_CREDIT_OFF", "Store credit isn't available.");
+    throw new LoyaltyError("STORE_CREDIT_OFF", "Using coins as store credit isn't switched on.");
+  }
+  if (asStoreCredit && !request.rewardId && (request.cartSubtotal === undefined || request.cartSubtotal === null)) {
+    throw new LoyaltyError("BAD_CART", "Use coins from your cart.");
   }
   await guardRate(member.id);
   const offer = await resolveOffer(shop, settings, member, request);
   if (asStoreCredit && offer.rewardType !== "FIXED_AMOUNT") {
-    throw new LoyaltyError("BAD_REWARD", "Only ₹ rewards can go to store credit.");
+    throw new LoyaltyError("BAD_REWARD", "Only ₹ amounts can go to store credit.");
   }
 
   const effects = [];
@@ -169,6 +192,8 @@ export async function redeem(shop, customerMemberId, request, admin) {
       minSubtotal: issued.minSubtotal,
       expiresAt: issued.expiresAt,
       applyUrl: code ? `/discount/${encodeURIComponent(code)}?redirect=%2Fcart` : null,
+      storeCredit: asStoreCredit ? { amount: offer.value, currency: settings.currencyCode } : null,
+      checkoutUrl: asStoreCredit ? "/checkout" : null,
       balance: after.balance,
     };
   } catch (err) {
@@ -185,7 +210,7 @@ export async function redeem(shop, customerMemberId, request, admin) {
       await tx.redemption.update({ where: { id: redemption.id }, data: { status: "FAILED" } });
     });
     await runEffects(shop, rollbackEffects, admin);
-    throw new LoyaltyError("ISSUE_FAILED", "We couldn't create your reward. Your points are safe, please try again.", 502);
+    throw new LoyaltyError("ISSUE_FAILED", "We couldn't add your coins. They're safe, please try again.", 502);
   }
 }
 
