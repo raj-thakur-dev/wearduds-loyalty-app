@@ -10,7 +10,16 @@ export async function action({ request }) {
   }
   const started = Date.now();
   const results = await runAllShops();
-  return json({ ok: true, ms: Date.now() - started, results });
+  // Full results go to the server log; the caller gets a short summary, because
+  // cron-job.org fails a run whose response body is too large.
+  console.log(`[club] cron results ${JSON.stringify(results).slice(0, 4000)}`);
+  const errors = [];
+  for (const [shop, steps] of Object.entries(results)) {
+    for (const [step, r] of Object.entries(steps || {})) {
+      if (r && r.error) errors.push(`${shop} ${step}: ${String(r.error).slice(0, 120)}`);
+    }
+  }
+  return json({ ok: errors.length === 0, ms: Date.now() - started, shops: Object.keys(results).length, errors: errors.slice(0, 10) });
 }
 
 export function loader() {

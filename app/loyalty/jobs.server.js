@@ -146,7 +146,7 @@ export async function runShopJobs(shop, now = new Date()) {
   // Theme Liquid (product "earn X coins") reads a copy of the settings in a shop
   // metafield. Refresh it daily so changes made outside the admin (migrations,
   // direct DB edits) reach the storefront without someone pressing Save.
-  if (admin) await step("config", () => once(shop, "config", () => publishConfig(shop, admin), now));
+  if (admin) await step("config", () => once(shop, "config", async () => { await publishConfig(shop, admin); return { published: true }; }, now));
   return results;
 }
 
