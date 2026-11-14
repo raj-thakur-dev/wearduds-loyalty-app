@@ -17,6 +17,7 @@ export async function loader({ request }) {
       fallbackDays: s.fallbackDays,
       expiryDays: s.expiryDays,
       expiryWarningDays: s.expiryWarningDays,
+      expirySecondWarningDays: s.expirySecondWarningDays,
       excludeTags: s.excludeTags.join(", "),
     },
     currency: s.currencyCode,
@@ -31,6 +32,7 @@ const RULE_FIELDS = {
   review: ["points", "minWords", "requireVerifiedBuyer"],
   photoReview: ["points"],
   referral: ["referrerPoints", "friendPoints", "monthlyCap"],
+  streak: ["points", "orders", "windowDays"],
   instagram: ["points", "handle"],
   newsletter: ["points"],
 };
@@ -41,12 +43,14 @@ export async function action({ request }) {
   const current = await getSettings(session.shop);
 
   const base = validateSettingsInput({
-    pointsPerCurrency: form.get("pointsPerCurrency"),
+    // Shown to staff as "% back"; stored as coins per ₹1 (3% = 0.03).
+    pointsPerCurrency: form.get("earnPercent") === null || form.get("earnPercent") === "" ? undefined : String(Number(form.get("earnPercent")) / 100),
     creditTrigger: form.get("creditTrigger"),
     holdDays: form.get("holdDays"),
     fallbackDays: form.get("fallbackDays"),
     expiryDays: form.get("expiryDays"),
     expiryWarningDays: form.get("expiryWarningDays"),
+    expirySecondWarningDays: form.get("expirySecondWarningDays"),
     excludeTags: form.get("excludeTags") ?? "",
   });
   if (base.errors) return { errors: base.errors };
@@ -83,22 +87,24 @@ export default function Earn() {
 
           <s-section heading="Shopping">
             <s-stack gap="base">
-              <s-switch name="purchase.enabled" label="Earn points on orders" checked={rules.purchase.enabled || undefined} />
+              <s-switch name="purchase.enabled" label="Earn coins on orders" checked={rules.purchase.enabled || undefined} />
               <s-grid gridTemplateColumns="repeat(auto-fit, minmax(220px, 1fr))" gap="base">
                 <s-number-field
-                  name="pointsPerCurrency"
-                  label="Points per ₹1 spent"
-                  value={String(base.pointsPerCurrency)}
-                  step="0.01"
+                  name="earnPercent"
+                  label="Back in coins"
+                  value={String(Math.round(base.pointsPerCurrency * 10000) / 100)}
+                  step="0.5"
                   min="0"
-                  details={`A ${formatMoney(1999, currency)} order earns ${example.toLocaleString("en-IN")} points before tier bonus.`}
+                  max="100"
+                  suffix="%"
+                  details={`1 coin = ${formatMoney(base.pointValue, currency)}. A ${formatMoney(1999, currency)} order earns ${example.toLocaleString("en-IN")} coins before tier bonus.`}
                 />
-                <s-select name="creditTrigger" label="Points unlock" value={base.creditTrigger}>
+                <s-select name="creditTrigger" label="Coins unlock" value={base.creditTrigger}>
                   <s-option value="DELIVERED">After delivery</s-option>
                   <s-option value="FULFILLED">After shipping</s-option>
                   <s-option value="PAID">After payment</s-option>
                 </s-select>
-                <s-number-field name="holdDays" label="Wait (days)" value={String(base.holdDays)} min="0" max="90" details="Return window before points unlock" />
+                <s-number-field name="holdDays" label="Wait (days)" value={String(base.holdDays)} min="0" max="90" details="Return window before coins unlock" />
                 <s-number-field
                   name="fallbackDays"
                   label="Unlock anyway after (days from shipping)"
@@ -109,7 +115,7 @@ export default function Earn() {
                 />
               </s-grid>
               <s-paragraph color="subdued">
-                Points are earned on what the customer paid for products, after discounts. Shipping, taxes added at checkout and gift cards don't earn.
+                Coins are earned on what the customer paid for products, after discounts. Shipping, taxes added at checkout and gift cards don't earn.
               </s-paragraph>
             </s-stack>
           </s-section>
@@ -144,10 +150,22 @@ export default function Earn() {
             <s-stack gap="base">
               <s-switch name="referral.enabled" label="Refer a friend" checked={rules.referral.enabled || undefined} />
               <s-grid gridTemplateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap="base">
-                <s-number-field name="referral.referrerPoints" label="Referrer gets" value={String(rules.referral.referrerPoints)} suffix="points" details="When the friend's first order ships" />
-                <s-number-field name="referral.friendPoints" label="Friend gets" value={String(rules.referral.friendPoints)} suffix="points" details="When they join with the link" />
+                <s-number-field name="referral.referrerPoints" label="Referrer gets" value={String(rules.referral.referrerPoints)} suffix="coins" details="When the friend's first order ships" />
+                <s-number-field name="referral.friendPoints" label="Friend gets" value={String(rules.referral.friendPoints)} suffix="coins" details="When they join with the link" />
                 <s-number-field name="referral.monthlyCap" label="Max rewarded referrals a month" value={String(rules.referral.monthlyCap)} min="0" details="0 = no limit" />
               </s-grid>
+            </s-stack>
+          </s-section>
+
+          <s-section heading="Order streak">
+            <s-stack gap="base">
+              <s-switch name="streak.enabled" label="Bonus for repeat orders" checked={rules.streak.enabled || undefined} />
+              <s-grid gridTemplateColumns="repeat(auto-fit, minmax(180px, 1fr))" gap="base">
+                <s-number-field name="streak.points" label="Bonus" value={String(rules.streak.points)} min="0" suffix="coins" />
+                <s-number-field name="streak.orders" label="Every" value={String(rules.streak.orders)} min="2" max="50" suffix="orders" />
+                <s-number-field name="streak.windowDays" label="Within" value={String(rules.streak.windowDays)} min="7" max="730" suffix="days" />
+              </s-grid>
+              <s-paragraph color="subdued">Counts orders once their return window has passed. With 3 orders in 90 days, the 3rd, 6th and 9th orders earn the bonus.</s-paragraph>
             </s-stack>
           </s-section>
 
@@ -157,15 +175,16 @@ export default function Earn() {
                 <s-text-field name="instagram.handle" label="Handle" value={rules.instagram.handle} prefix="@" />
               </RuleRow>
               <s-banner tone="info">
-                Members DM a one-time code to your account and the app checks they follow you before awarding points. Needs the Meta app keys in Settings &gt; Integrations.
+                Members DM a one-time code to your account and the app checks they follow you before awarding coins. Needs the Meta app keys in Settings &gt; Integrations.
               </s-banner>
             </s-stack>
           </s-section>
 
           <s-section heading="Expiry and exclusions">
             <s-grid gridTemplateColumns="repeat(auto-fit, minmax(220px, 1fr))" gap="base">
-              <s-number-field name="expiryDays" label="Points expire after (days)" value={String(base.expiryDays)} min="0" details="0 = never expire" />
-              <s-number-field name="expiryWarningDays" label="Warn this many days before" value={String(base.expiryWarningDays)} min="1" details="Sends the Club points expiring Flow trigger" />
+              <s-number-field name="expiryDays" label="Coins expire after (days)" value={String(base.expiryDays)} min="0" details="0 = never expire" />
+              <s-number-field name="expiryWarningDays" label="First reminder (days before)" value={String(base.expiryWarningDays)} min="1" details="Sends the Club points expiring Flow trigger" />
+              <s-number-field name="expirySecondWarningDays" label="Second reminder (days before)" value={String(base.expirySecondWarningDays)} min="0" details="0 = no second reminder" />
               <s-text-field name="excludeTags" label="Exclude customers tagged" value={base.excludeTags} placeholder="staff, wholesale" details="Comma separated" />
             </s-grid>
           </s-section>
@@ -185,7 +204,7 @@ function RuleRow({ name, rule, label, children }) {
   return (
     <s-grid gridTemplateColumns="2fr 1fr" gap="base" alignItems="center">
       <s-switch name={`${name}.enabled`} label={label} checked={rule.enabled || undefined} />
-      <s-number-field name={`${name}.points`} label="Points" labelAccessibilityVisibility="exclusive" value={String(rule.points)} min="0" suffix="points" />
+      <s-number-field name={`${name}.points`} label="Coins" labelAccessibilityVisibility="exclusive" value={String(rule.points)} min="0" suffix="coins" />
       {children ? (
         <s-grid-item gridColumn="span 2">
           <s-stack direction="inline" gap="base" alignItems="end">

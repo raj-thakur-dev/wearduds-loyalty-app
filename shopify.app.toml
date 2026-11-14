@@ -62,24 +62,24 @@ api_version = "2026-07"
 # segments, Klaviyo, Flow, theme Liquid and customer account extensions.
 [customer.metafields.app.points_balance]
 type = "number_integer"
-name = "Club points balance"
-description = "Spendable Wearduds Club points"
+name = "Club coins balance"
+description = "Spendable Wearduds Club Coins (1 coin = ₹1)"
 access.admin = "merchant_read"
 access.storefront = "public_read"
 access.customer_account = "read"
 
 [customer.metafields.app.points_pending]
 type = "number_integer"
-name = "Club points pending"
-description = "Points waiting for delivery + return window"
+name = "Club coins pending"
+description = "Coins waiting for delivery + return window"
 access.admin = "merchant_read"
 access.storefront = "public_read"
 access.customer_account = "read"
 
 [customer.metafields.app.points_lifetime]
 type = "number_integer"
-name = "Club lifetime points"
-description = "All points ever earned; decides the tier"
+name = "Club lifetime coins"
+description = "All coins ever earned"
 access.admin = "merchant_read"
 access.storefront = "public_read"
 access.customer_account = "read"

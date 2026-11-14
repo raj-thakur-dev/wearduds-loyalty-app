@@ -72,7 +72,7 @@ export default function Referrals() {
           <Metric label="Friends joined" value={formatPoints(stats.total)} />
           <Metric label="First orders shipped" value={formatPoints(stats.rewarded)} help={`${stats.conversion}% conversion`} />
           <Metric label="Waiting" value={formatPoints(stats.waiting)} help="Joined, no shipped order yet" />
-          <Metric label="Points given" value={formatPoints(stats.points)} help={`${rule.referrerPoints} per referrer · ${rule.friendPoints} per friend`} />
+          <Metric label="Coins given" value={formatPoints(stats.points)} help={`${rule.referrerPoints} per referrer · ${rule.friendPoints} per friend`} />
         </s-grid>
       </s-section>
 

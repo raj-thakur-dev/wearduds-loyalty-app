@@ -45,25 +45,27 @@ model ProgramSettings {
   programName              String        @default("The Wearduds Club")
   isLive                   Boolean       @default(false)
   currencyCode             String        @default("INR")
-  pointsPerCurrency        Float         @default(1) // points earned per ₹1 of eligible spend
-  pointValue               Float         @default(0.1) // ₹ value of one point when redeemed
+  pointsPerCurrency        Float         @default(0.03) // coins earned per ₹1 of eligible spend (0.03 = 3% back)
+  pointValue               Float         @default(1) // ₹ value of one coin when redeemed
   creditTrigger            CreditTrigger @default(DELIVERED)
   holdDays                 Int           @default(7)
   fallbackDays             Int           @default(15)
-  expiryDays               Int           @default(365) // 0 = never expire
+  expiryDays               Int           @default(90) // 0 = never expire
   expiryWarningDays        Int           @default(30)
+  expirySecondWarningDays  Int           @default(7) // 0 = no second reminder
   maxRedeemPercent         Int           @default(20)
+  minRedeemSubtotal        Float         @default(1499) // cart must be at least this to use coins
   codeExpiryDays           Int           @default(90)
   codePrefix               String        @default("WD")
   combinesWithProduct      Boolean       @default(false)
   combinesWithOrder        Boolean       @default(false)
   combinesWithShipping     Boolean       @default(true)
   sliderEnabled            Boolean       @default(true)
-  sliderStep               Int           @default(100)
-  sliderMinPoints          Int           @default(500)
-  storeCreditEnabled       Boolean       @default(false)
+  sliderStep               Int           @default(1)
+  sliderMinPoints          Int           @default(10)
+  storeCreditEnabled       Boolean       @default(true)
   restorePointsOnCancel    Boolean       @default(true)
-  downgradeAfterDays       Int           @default(365) // 0 = never downgrade
+  downgradeAfterDays       Int           @default(365) // tier window: spend counted over this many days (0 = lifetime)
   excludeTags              String[]      @default([])
   earnRules                Json
   widget                   Json
@@ -77,7 +79,7 @@ model Tier {
   id         String   @id @default(cuid())
   shop       String
   name       String
-  threshold  Int // lifetime points needed
+  threshold  Int // ₹ net spend needed inside the tier window
   multiplier Float    @default(1)
   perks      String[] @default([])
   color      String   @default("#111111")
@@ -130,7 +132,8 @@ model Member {
   tierId          String?
   tier            Tier?     @relation(fields: [tierId], references: [id], onDelete: SetNull)
   tierLocked      Boolean   @default(false) // staff override, engine leaves tier alone
-  tierPointsOffset Int      @default(0) // set on inactivity downgrade; tier uses lifetimeEarned - offset
+  tierPointsOffset Int      @default(0) // legacy, unused since tiers moved to spend
+  tierSpend       Float     @default(0) // ₹ net spend in the tier window, refreshed on release and daily
   tierAchievedAt  DateTime?
   referralCode    String
   referredById    String?
@@ -180,6 +183,7 @@ enum LedgerType {
   REDEMPTION_RESTORED
   REFUND_REVERSAL
   EXPIRY
+  STREAK
 }
 
 enum LedgerStatus {

@@ -36,8 +36,8 @@ function ProfileCard() {
           {m.tier ? <s-badge>{m.tier.name}</s-badge> : null}
         </s-stack>
         <s-text color="subdued">
-          {pts(m.balance)} points{m.pending ? `, ${pts(m.pending)} pending` : ""}
-          {m.nextTier ? `. ${pts(m.nextTier.pointsNeeded)} to ${m.nextTier.name}` : ""}
+          {pts(m.balance)} coins{m.pending ? `, ${pts(m.pending)} pending` : ""}
+          {m.nextTier ? `. Spend ₹${pts(m.nextTier.amountNeeded ?? m.nextTier.pointsNeeded)} more for ${m.nextTier.name}` : ""}
         </s-text>
         <s-link href="extension:club-account-page/">See rewards</s-link>
       </s-stack>
