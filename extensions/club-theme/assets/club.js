@@ -76,9 +76,19 @@
       });
     });
   }
+  var reported = false;
   function load(force) {
     if (loading && !force) return loading;
-    var q = lastCartSubtotal !== null ? "?cart=" + encodeURIComponent(lastCartSubtotal) : "";
+    var params = [];
+    if (lastCartSubtotal !== null) params.push("cart=" + encodeURIComponent(lastCartSubtotal));
+    if (!reported) {
+      var sf = [];
+      if (window.WDClubEmbed) sf.push("e");
+      if (document.querySelector("[data-wdc-page]")) sf.push("p");
+      if (sf.length) params.push("sf=" + sf.join(","));
+      reported = true;
+    }
+    var q = params.length ? "?" + params.join("&") : "";
     loading = request("/state" + q).then(function (s) {
       state = s; loading = null; claimReferral(); emit(); return s;
     }, function (err) { loading = null; throw err; });

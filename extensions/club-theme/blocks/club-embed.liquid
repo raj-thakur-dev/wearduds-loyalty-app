@@ -6,6 +6,7 @@
 {%- if block.settings.bottom_offset > 0 -%}
   <style>:root { --wdc-bottom-offset: {{ block.settings.bottom_offset }}px; }</style>
 {%- endif -%}
+<script>window.WDClubEmbed = true;</script>
 {%- render 'club-config',
   accent: block.settings.accent,
   show_launcher: block.settings.show_launcher,

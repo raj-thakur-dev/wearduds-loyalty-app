@@ -2,6 +2,7 @@ import { Form, useActionData, useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { getSettings, updateSettings } from "../loyalty/settings.server";
+import { isRecent } from "../loyalty/signals.server";
 import { publishConfig } from "../loyalty/config.server";
 import { pointsToMoney } from "../loyalty/math";
 import { Metric, formatDate, formatMoney, formatPoints, ledgerTone, useActionToast, useBusy } from "../admin/ui";
@@ -108,6 +109,10 @@ export async function loader({ request }) {
     checklist: {
       rewardsActive,
       cronRunning: !!lastCron && Date.now() - new Date(lastCron.startedAt).getTime() < 2 * DAY,
+      embed: isRecent(settings.signals?.embed, 14),
+      page: isRecent(settings.signals?.page, 30),
+      account: isRecent(settings.signals?.account, 60),
+      integrations: isRecent(settings.signals?.judgeme, 60) || isRecent(settings.signals?.flow, 60),
     },
   };
 }
@@ -250,21 +255,22 @@ export default function Overview() {
           <ChecklistItem done={data.checklist.rewardsActive > 0} title="Rewards set up" href="/app/rewards">
             {data.checklist.rewardsActive} active rewards
           </ChecklistItem>
-          <ChecklistItem title="Turn on the Rewards embed" href={`${editor}?context=apps`} external>
+          <ChecklistItem done={data.checklist.embed} title="Turn on the Rewards embed" href={`${editor}?context=apps`} external>
             Theme editor &gt; App embeds &gt; Wearduds Club
           </ChecklistItem>
-          <ChecklistItem title="Add the Club page" href={`${editor}?template=page`} external>
+          <ChecklistItem done={data.checklist.page} title="Add the Club page" href={`${editor}?template=page`} external>
             Create /pages/wearduds-club and add the Club page section
           </ChecklistItem>
-          <ChecklistItem title="Add Rewards to customer accounts" href={`https://admin.shopify.com/store/${data.storeHandle}/settings/checkout`} external>
+          <ChecklistItem done={data.checklist.account} title="Add Rewards to customer accounts" href={`https://admin.shopify.com/store/${data.storeHandle}/settings/checkout`} external>
             Checkout &amp; accounts editor &gt; add the Rewards page to the menu
           </ChecklistItem>
           <ChecklistItem done={data.checklist.cronRunning} title="Scheduled jobs running" href="/app/settings">
             Unlocks points, expiry and birthdays every hour
           </ChecklistItem>
-          <ChecklistItem title="Connect Judge.me and Flow" href="/app/settings#integrations">
+          <ChecklistItem done={data.checklist.integrations} title="Connect Judge.me and Flow" href="/app/settings#integrations">
             Review points and email/WhatsApp automations
           </ChecklistItem>
+          <s-text color="subdued">Steps tick themselves once the store sends real traffic through them. Visit the page, then reload this screen.</s-text>
           <Form method="post">
             <input type="hidden" name="intent" value="publish" />
             <s-button type="submit" variant="tertiary" loading={busy || undefined}>
@@ -279,7 +285,7 @@ export default function Overview() {
 
 function ChecklistItem({ done, title, href, external, children }) {
   return (
-    <s-stack direction="inline" gap="small" alignItems="start">
+    <s-grid gridTemplateColumns="20px 1fr" gap="small" alignItems="start">
       <s-icon type={done ? "check-circle-filled" : "circle"} tone={done ? "success" : "neutral"} />
       <s-stack gap="small-500">
         <s-link href={href} target={external ? "_blank" : undefined}>
@@ -287,6 +293,6 @@ function ChecklistItem({ done, title, href, external, children }) {
         </s-link>
         <s-text color="subdued">{children}</s-text>
       </s-stack>
-    </s-stack>
+    </s-grid>
   );
 }
