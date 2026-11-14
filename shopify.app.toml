@@ -7,7 +7,7 @@ application_url = "https://wearduds-club.onrender.com"
 embedded = true
 
 [access_scopes]
-scopes = "read_customers,write_customers,read_orders,write_discounts,write_store_credit_account_transactions"
+scopes = "read_customers,write_customers,read_orders,read_fulfillments,write_discounts,write_store_credit_account_transactions"
 
 [auth]
 redirect_urls = [
