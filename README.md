@@ -62,7 +62,9 @@ Shopify failures, expiry, birthdays, reviews, referrals and tier downgrades.
 Dev setup: Render free web service `wearduds-club` (Docker, Singapore) at
 `https://wearduds-club.onrender.com`, plus free Postgres `wearduds-club-db`.
 
-1. Set `DATABASE_URL` to the database's **Internal Database URL**. SQLite is gone: it was wiped on every deploy.
+1. Set `DATABASE_URL` to the Postgres connection string. SQLite is gone: it was wiped on every deploy.
+   Add `?schema=wearduds` to keep the app in its own schema when the database holds other tables
+   (the dev Supabase project does). Both the migration and the app read that parameter.
 2. Set env vars from `.env.example` (`SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_APP_URL`, `SCOPES`, `CRON_SECRET`).
 3. Deploy. The Docker start command runs `prisma migrate deploy` before starting.
 4. Hourly cron: an external pinger (cron-job.org) sends `POST /internal/cron` with header
